@@ -136,6 +136,16 @@ def random_sqrt_columns(X, rand):
     return c
 
 
+# TREE NODE
+class TreeNode:
+
+    def __init__(self, col, thresh, left, right):
+        self.col = col  # Feature index to split on
+        self.thresh = thresh  # Threshold for going left vs right
+        self.left = left  # Lesser node
+        self.right = right  # Greater node
+
+
 # DECISION TREE
 class Tree:
 
@@ -177,7 +187,7 @@ class Tree:
         right = self.build_node(X[right_mask], y[right_mask])
 
         # Return a nested structure used to construct a TreeModel
-        return (best_col, best_thresh, left, right)
+        return TreeNode(best_col, best_thresh, left, right)
 
     def best_split(self, X, y):
         best_gini = float("inf")
@@ -244,15 +254,14 @@ class TreeModel:
 
     def predict_one(self, x, node):
         # If node is a leaf, return its class
-        if not isinstance(node, tuple):
+        if not isinstance(node, TreeNode):
             return node
         # Otherwise compare the instance column value to the learned threshold
-        col, thresh, left, right = node
-        if x[col] <= thresh:
+        if x[node.col] <= node.thresh:
             # And recursively call the prediction function on either the left or right node
-            return self.predict_one(x, left)
+            return self.predict_one(x, node.left)
         else:
-            return self.predict_one(x, right)
+            return self.predict_one(x, node.right)
 
 
 # RANDOM FOREST
@@ -447,8 +456,8 @@ def plot_variable_importance(learn, legend):
         # We only care about the first split
         node = tree.build_node(X_train, y_shuffled)
         # If exists, save the root split feature
-        if isinstance(node, tuple):
-            root_counts[node[0]] += 1
+        if isinstance(node, TreeNode):
+            root_counts[node.col] += 1
 
     # Normalize importances and root split counts to frequency
     importances = np.maximum(importances, 0)
