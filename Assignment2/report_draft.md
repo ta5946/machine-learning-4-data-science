@@ -30,3 +30,31 @@
 | **LogisticRegression**   | Nested cross-validation `C` | 0.7310 ± 0.0222         | 0.6802 ± 0.0419 |
 | **KNeighborsClassifier** | Train fold optimization `k` | 0.6856 ± 0.0181         | 6.3011 ± 0.4885 |
 | **KNeighborsClassifier** | Nested cross-validation `k` | 0.6966 ± 0.0210         | 0.9737 ± 0.1171 |
+
+## Competition distribution:
+- NBA is underrepresented in our sample
+
+| Competition | Dataset Frequency | Real World Frequency | Difference |
+|:------------|:------------------|:---------------------|:-----------|
+| **NBA**     | 0.2482            | 0.6000               | -0.3518    |
+| **EURO**    | 0.2707            | 0.1000               | 0.1707     |
+| **SLO1**    | 0.2318            | 0.1000               | 0.1318     |
+| **U14**     | 0.1474            | 0.1000               | 0.0474     |
+| **U16**     | 0.1019            | 0.1000               | 0.0019     |
+
+## Accuracy by competition:
+- NBA is the easiest to predict
+
+| Model                    | EURO  | NBA   | SLO1  | U14   | U16   |
+|:-------------------------|:------|:------|:------|:------|:------|
+| **DummyClassifier**      | 0.622 | 0.674 | 0.627 | 0.513 | 0.515 |
+| **LogisticRegression**   | 0.740 | 0.774 | 0.681 | 0.713 | 0.739 |
+| **KNeighborsClassifier** | 0.706 | 0.732 | 0.679 | 0.649 | 0.680 |
+
+## Estimated real world performance:
+
+| Model                    | Dataset Accuracy | Estimated Real World | Change  |
+|:-------------------------|:-----------------|:---------------------|:--------|
+| **DummyClassifier**      | 0.6090           | 0.6320               | +0.0230 |
+| **LogisticRegression**   | 0.7308           | 0.7519               | +0.0211 |
+| **KNeighborsClassifier** | 0.6951           | 0.7104               | +0.0153 |
