@@ -1,4 +1,4 @@
-**Before deduplication:**
+## Before deduplication:
 
 | Model                    | Evaluation Approach         | Classification Accuracy | Log-score       |
 |:-------------------------|:----------------------------|:------------------------|:----------------|
@@ -8,7 +8,7 @@
 | **KNeighborsClassifier** | Train fold optimization `k` | 0.6933 ± 0.0185         | 6.1686 ± 0.6617 |
 | **KNeighborsClassifier** | Nested cross-validation `k` | 0.6986 ± 0.0223         | 0.9698 ± 0.0906 |
 
-**After deduplication with 5 folds:**
+## After deduplication with 5 folds:
 - Lower accuracy (no seen instances)
 
 | Model                    | Evaluation Approach         | Classification Accuracy | Log-score       |
@@ -19,7 +19,7 @@
 | **KNeighborsClassifier** | Train fold optimization `k` | 0.6833 ± 0.0147         | 6.3590 ± 0.4812 |
 | **KNeighborsClassifier** | Nested cross-validation `k` | 0.6951 ± 0.0180         | 0.9999 ± 0.0926 |
 
-**With 10 outer folds:**
+## With 10 outer folds:
 - Higher accuracy (more training data)
 - Higher variance (fewer instances in test folds)
 
