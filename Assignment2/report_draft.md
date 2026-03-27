@@ -1,6 +1,6 @@
 ## Before deduplication:
 
-| Model                    | Evaluation Approach         | Classification Accuracy | Log-score       |
+| Model                    | Evaluation Approach         | Classification Accuracy | Log Loss        |
 |:-------------------------|:----------------------------|:------------------------|:----------------|
 | **DummyClassifier**      | Relative frequency baseline | 0.6081 ± 0.0141         | 1.1658 ± 0.0326 |
 | **LogisticRegression**   | Train fold optimization `C` | 0.7357 ± 0.0159         | 0.6711 ± 0.0383 |
@@ -11,7 +11,7 @@
 ## After deduplication with 5 folds:
 - Lower accuracy (no seen instances)
 
-| Model                    | Evaluation Approach         | Classification Accuracy | Log-score       |
+| Model                    | Evaluation Approach         | Classification Accuracy | Log Loss        |
 |:-------------------------|:----------------------------|:------------------------|:----------------|
 | **DummyClassifier**      | Relative frequency baseline | 0.6090 ± 0.0154         | 1.1698 ± 0.0321 |
 | **LogisticRegression**   | Train fold optimization `C` | 0.7312 ± 0.0159         | 0.6798 ± 0.0346 |
@@ -23,7 +23,7 @@
 - Higher accuracy (more training data)
 - Higher variance (fewer instances in test folds)
 
-| Model                    | Evaluation Approach         | Classification Accuracy | Log-score       |
+| Model                    | Evaluation Approach         | Classification Accuracy | Log Loss        |
 |:-------------------------|:----------------------------|:------------------------|:----------------|
 | **DummyClassifier**      | Relative frequency baseline | 0.6090 ± 0.0221         | 1.1697 ± 0.0385 |
 | **LogisticRegression**   | Train fold optimization `C` | 0.7314 ± 0.0211         | 0.6794 ± 0.0420 |

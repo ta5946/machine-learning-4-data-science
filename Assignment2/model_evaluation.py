@@ -33,7 +33,7 @@ def classification_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.mean(y_true == y_pred))
 
 
-def log_score(y_true: np.ndarray, y_prob: np.ndarray) -> float:
+def log_loss(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     # Avoid log(0) = -inf
     y_prob = np.clip(y_prob, 1e-15, 1.0)
     true_class_probs = y_prob[np.arange(len(y_true)), y_true]
@@ -62,7 +62,7 @@ class ModelEvaluator:
         self.numerical = numerical
         self.param_grid = param_grid
         self.pred_metrics = pred_metrics or [classification_accuracy]
-        self.prob_metrics = prob_metrics or [log_score]
+        self.prob_metrics = prob_metrics or [log_loss]
         self.label_encoder = LabelEncoder()
         self.preprocessor = ColumnTransformer(
             [
@@ -143,7 +143,7 @@ class ModelEvaluator:
         df: pd.DataFrame,
         k_outer: int = 5,
         k_inner: int = 5,
-        tune_metric: Callable = log_score,  # Metric to minimize
+        tune_metric: Callable = log_loss,  # Metric to minimize
         use_nested: bool = True,
     ) -> None:
         X, y = self._prepare_data(df)
@@ -253,6 +253,12 @@ if __name__ == "__main__":
     target = "ShotType"
     categorical = ["Competition", "PlayerType", "Movement"]
     numerical = ["Transition", "TwoLegged", "Angle", "Distance"]
+
+    # Print the number of identical rows with different labels
+    duplicate_count = (
+        dataset.drop(columns=["id", target]).duplicated(keep=False).sum()
+    ) / 2
+    print(f"Number of rows conflicting labels: {int(duplicate_count)}")
 
     # Define tunable parameters
     dummy_params = {"strategy": ["prior"]}  # Placeholder param grid

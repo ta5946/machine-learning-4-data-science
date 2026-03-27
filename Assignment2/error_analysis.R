@@ -33,7 +33,7 @@ for (dataset in datasets) {
     geom_errorbar(aes(ymin = mean_error - se_error, ymax = mean_error + se_error),
                   width = 2, color = "black", alpha = 0.7) +
     scale_x_continuous(breaks = seq(0, 90, bin_size)) +
-    ylim(0, 0.5) +
+    ylim(0, 0.6) +
     theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5)) +
     labs(title = paste("Error rate by angle for", dataset),
