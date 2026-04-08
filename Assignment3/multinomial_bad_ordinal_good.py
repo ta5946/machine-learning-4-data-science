@@ -1,6 +1,12 @@
 import numpy as np
-from collections import Counter
 
+from metrics import (
+    accuracy,
+    log_loss,
+    baseline_accuracy,
+    baseline_log_loss,
+    confidence_interval,
+)
 from solution1 import MultinomialLogReg, OrdinalLogReg
 
 
@@ -36,27 +42,6 @@ def multinomial_bad_ordinal_good(n_samples=400, seed=42):
 
     X = np.column_stack([attendance, homework, study_hours, physical_activity])
     return X, grades, grade_names
-
-
-# Metrics
-def accuracy(y_true, probs, classes):
-    return np.mean(classes[probs.argmax(axis=1)] == y_true)
-
-
-def log_loss(y_true, probs, classes):
-    class_to_idx = {c: i for i, c in enumerate(classes)}
-    idx = np.array([class_to_idx[c] for c in y_true])
-    return -np.mean(np.log(probs[np.arange(len(y_true)), idx] + 1e-15))
-
-
-def baseline_accuracy(y):
-    # Majority class classifier
-    return Counter(y).most_common(1)[0][1] / len(y)
-
-
-def baseline_log_loss(y, classes):
-    # Uniform classifier: 1/K probability per class
-    return np.log(len(classes))
 
 
 # Normalization
@@ -110,11 +95,6 @@ def bootstrap(X, y, classes, n_boot=25, lr=0.1, n_steps=1000):
         "ordinal": {"acc": np.array(ordinal_acc), "loss": np.array(ordinal_loss)},
         "base": {"acc": np.array(base_acc), "loss": np.array(base_loss)},
     }
-
-
-# Printing results
-def confidence_interval(samples):  # returns mean, 2.5th and 97.5th percentile
-    return samples.mean(), *np.percentile(samples, [2.5, 97.5])
 
 
 def print_performance(results, n_samples):

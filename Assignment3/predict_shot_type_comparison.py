@@ -1,8 +1,14 @@
 import time
 import numpy as np
 import pandas as pd
-from collections import Counter
 
+from metrics import (
+    accuracy,
+    log_loss,
+    baseline_accuracy,
+    baseline_log_loss,
+    confidence_interval,
+)
 from solution1 import MultinomialLogReg as MultinomialLogRegGD
 from solution2 import MultinomialLogReg as MultinomialLogRegLBFGS
 
@@ -26,26 +32,6 @@ def load_and_prepare(path):
     X = (X - mean) / std
 
     return X, y, feature_names
-
-
-# Metrics
-def accuracy(y_true, probs, classes):
-    return np.mean(classes[probs.argmax(axis=1)] == y_true)
-
-
-def log_loss(y_true, probs, classes):
-    idx = np.searchsorted(classes, y_true)
-    return -np.mean(np.log(probs[np.arange(len(y_true)), idx] + 1e-15))
-
-
-def baseline_accuracy(y):
-    # Majority class classifier
-    return Counter(y).most_common(1)[0][1] / len(y)
-
-
-def baseline_log_loss(y, classes):
-    # Uniform classifier: 1/K probability per class
-    return np.log(len(classes))
 
 
 # Bootstrap: both models on the same resamples, OOB evaluation.
@@ -176,11 +162,6 @@ def track_convergence(X_train, y_train, classes, lr=1.0, n_steps=1000, log_every
                 param.data -= lr * param.grad
 
     return loss_history
-
-
-# Printing results
-def confidence_interval(samples):  # returns mean, 2.5th and 97.5th percentile
-    return samples.mean(), *np.percentile(samples, [2.5, 97.5])
 
 
 def print_performance(results):

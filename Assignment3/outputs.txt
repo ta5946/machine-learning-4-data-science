@@ -14,12 +14,12 @@ PERFORMANCE  (OOB evaluation, 95% bootstrap CI)
   Accuracy                          0.605   [0.587, 0.621]
   Log-loss                          1.792   [1.792, 1.792]
 
-  Solution 1: gradient descent  (lr=1.0, steps=200)  (fit: 0.47s)
+  Solution 1: gradient descent  (lr=1.0, steps=200)  (fit: 0.46s)
                                      Mean   95% CI
   Accuracy                          0.727   [0.700, 0.745]
   Log-loss                          0.743   [0.718, 0.779]
 
-  Solution 2: L-BFGS-B  (fit: 12.32s)
+  Solution 2: L-BFGS-B  (fit: 11.99s)
                                      Mean   95% CI
   Accuracy                          0.738   [0.722, 0.754]
   Log-loss                          0.680   [0.651, 0.709]
