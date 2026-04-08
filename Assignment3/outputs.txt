@@ -1,0 +1,141 @@
+C:\Users\tjasa\miniconda3\envs\mlds\python.exe C:\Users\tjasa\Desktop\MLDS1\Assignment3\predict_shot_type_comparison.py
+Running bootstrap (n=25)...
+  5/25 done
+  10/25 done
+  15/25 done
+  20/25 done
+  25/25 done
+  25 valid resamples
+
+PERFORMANCE  (OOB evaluation, 95% bootstrap CI)
+
+  Baseline  (fit: —)
+                                     Mean   95% CI
+  Accuracy                          0.605   [0.587, 0.621]
+  Log-loss                          1.792   [1.792, 1.792]
+
+  Solution 1: gradient descent  (lr=1.0, steps=200)  (fit: 0.47s)
+                                     Mean   95% CI
+  Accuracy                          0.727   [0.700, 0.745]
+  Log-loss                          0.743   [0.718, 0.779]
+
+  Solution 2: L-BFGS-B  (fit: 12.32s)
+                                     Mean   95% CI
+  Accuracy                          0.738   [0.722, 0.754]
+  Log-loss                          0.680   [0.651, 0.709]
+
+CONVERGENCE  (first bootstrap iteration)
+
+  Convergence  (L-BFGS-B train log-loss: 0.6498)
+    Step   GD log-loss    L-BFGS-B
+       0        1.7918      0.6498
+      50        0.8314      0.6498
+     100        0.7646      0.6498
+     150        0.7390      0.6498
+     200        0.7244      0.6498
+     250        0.7144      0.6498
+     300        0.7069      0.6498
+     350        0.7012      0.6498
+     400        0.6966      0.6498
+     450        0.6928      0.6498
+     500        0.6897      0.6498
+     550        0.6870      0.6498
+     600        0.6848      0.6498
+     650        0.6828      0.6498
+     700        0.6811      0.6498
+     750        0.6796      0.6498
+     800        0.6783      0.6498
+     850        0.6771      0.6498
+     900        0.6760      0.6498
+     950        0.6750      0.6498
+    1000        0.6742      0.6498
+
+SIMILARITY
+
+  Prediction similarity on OOB samples (first bootstrap iteration)
+  Class prediction agreement:      0.911
+  Mean absolute prob difference:   0.0321
+
+NUMERICAL STABILITY
+
+  Numerical stability on OOB samples (first bootstrap iteration)
+                                       GD    L-BFGS-B
+  NaN in probs                      False       False
+  Probs near zero (< 1e-6)              0        2872
+  Probs near one (> 1-1e-6)             0           0
+
+Process finished with exit code 0
+
+
+C:\Users\tjasa\miniconda3\envs\mlds\python.exe C:\Users\tjasa\Desktop\MLDS1\Assignment3\predict_shot_type_uncertainty.py
+Running bootstrap (n=100)...
+  25/100 done
+  50/100 done
+  75/100 done
+  100/100 done
+  100 valid resamples
+
+Metric       Model mean   95% CI                   Baseline mean   95% CI
+Accuracy          0.727   [0.703, 0.749]                 0.606   [0.588, 0.623]
+Log-loss          0.740   [0.705, 0.775]                 1.792   [1.792, 1.792]
+
+Top 40 feature-class pairs by |coefficient|  (95% bootstrap CI)
+  Feature                        Class            Coef   95% CI
+  Distance                       above head     +1.250   [1.191, 1.327]
+  Distance                       layup          -1.141   [-1.201, -1.074]
+  Movement_no                    layup          -0.663   [-0.711, -0.619]
+  Distance                       other          +0.541   [0.411, 0.637]
+  Movement_drive                 above head     -0.496   [-0.518, -0.480]
+  TwoLegged                      other          -0.472   [-0.542, -0.394]
+  Distance                       hook shot      -0.462   [-0.529, -0.410]
+  Movement_no                    hook shot      +0.454   [0.410, 0.502]
+  Competition_U14                other          +0.309   [0.223, 0.388]
+  Movement_no                    above head     +0.307   [0.211, 0.390]
+  Movement_drive                 other          +0.304   [0.256, 0.346]
+  Movement_no                    other          -0.279   [-0.359, -0.178]
+  Angle                          layup          +0.269   [0.207, 0.340]
+  Competition_U14                hook shot      -0.266   [-0.346, -0.198]
+  PlayerType_G                   hook shot      -0.254   [-0.348, -0.177]
+  PlayerType_G                   other          +0.235   [0.172, 0.301]
+  TwoLegged                      dunk           +0.217   [0.186, 0.247]
+  Movement_drive                 layup          +0.216   [0.184, 0.247]
+  Competition_SLO1               other          -0.200   [-0.268, -0.114]
+  Angle                          hook shot      -0.196   [-0.265, -0.104]
+  Competition_U16                layup          +0.195   [0.134, 0.251]
+  Transition                     hook shot      -0.177   [-0.265, -0.102]
+  Competition_U14                layup          +0.165   [0.117, 0.223]
+  Distance                       dunk           -0.158   [-0.205, -0.103]
+  Competition_U16                hook shot      -0.157   [-0.236, -0.085]
+  Competition_U14                dunk           -0.156   [-0.181, -0.125]
+  TwoLegged                      tip-in         +0.150   [0.123, 0.184]
+  Competition_NBA                hook shot      -0.145   [-0.211, -0.061]
+  TwoLegged                      above head     -0.144   [-0.224, -0.069]
+  TwoLegged                      layup          +0.142   [0.092, 0.195]
+  PlayerType_F                   dunk           -0.136   [-0.202, -0.071]
+  PlayerType_G                   dunk           -0.129   [-0.188, -0.064]
+  Transition                     layup          +0.128   [0.077, 0.181]
+  Movement_no                    dunk           +0.113   [0.087, 0.135]
+  Competition_NBA                dunk           +0.110   [0.038, 0.187]
+  Competition_U16                other          +0.108   [0.022, 0.195]
+  TwoLegged                      hook shot      +0.106   [0.018, 0.189]
+  PlayerType_G                   above head     +0.106   [0.039, 0.160]
+  Competition_U14                tip-in         -0.105   [-0.131, -0.080]
+  PlayerType_F                   above head     +0.098   [0.031, 0.158]
+
+Process finished with exit code 0
+
+
+C:\Users\tjasa\miniconda3\envs\mlds\python.exe C:\Users\tjasa\Desktop\MLDS1\Assignment3\multinomial_bad_ordinal_good.py
+PERFORMANCE  (OOB evaluation, 95% bootstrap CI)
+
+  n=400
+  Baseline                            acc=0.378 [0.331, 0.445]   loss=1.609 [1.609, 1.609]
+  Multinomial logistic regression     acc=0.434 [0.371, 0.496]   loss=1.280 [1.229, 1.342]
+  Ordinal logistic regression         acc=0.449 [0.385, 0.504]   loss=1.229 [1.161, 1.282]
+
+  n=4000
+  Baseline                            acc=0.401 [0.384, 0.417]   loss=1.609 [1.609, 1.609]
+  Multinomial logistic regression     acc=0.453 [0.434, 0.473]   loss=1.267 [1.250, 1.281]
+  Ordinal logistic regression         acc=0.454 [0.441, 0.472]   loss=1.245 [1.227, 1.263]
+
+Process finished with exit code 0

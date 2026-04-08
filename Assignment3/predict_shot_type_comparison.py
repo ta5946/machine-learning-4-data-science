@@ -48,18 +48,76 @@ def baseline_log_loss(y, classes):
     return np.log(len(classes))
 
 
-# Train/test split
-def split(X, y, test_size=0.2, seed=42):
-    rng = np.random.default_rng(seed)
-    idx = rng.permutation(len(y))
-    n_test = int(len(y) * test_size)
-    test_idx, train_idx = idx[:n_test], idx[n_test:]
-    return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
+# Bootstrap: both models on the same resamples, OOB evaluation.
+def bootstrap(X, y, classes, n_boot=25, lr=1.0, n_steps=200):
+    n_samples, n_classes = X.shape[0], len(classes)
+
+    gd_acc, gd_loss, gd_fit_time = [], [], []
+    lbfgs_acc, lbfgs_loss, lbfgs_fit_time = [], [], []
+    base_acc, base_loss = [], []
+    first_iteration = None
+
+    for i in range(n_boot):
+        idx = np.random.choice(n_samples, size=n_samples, replace=True)
+        X_boot, y_boot = X[idx], y[idx]
+
+        # ~37% of samples are not drawn and serve as held-out OOB
+        oob_mask = np.ones(n_samples, dtype=bool)
+        oob_mask[idx] = False
+        X_oob, y_oob = X[oob_mask], y[oob_mask]
+
+        # Skip resamples missing a class
+        if len(np.unique(y_boot)) < n_classes:
+            continue
+
+        t = time.time()
+        model_gd = MultinomialLogRegGD(lr=lr, n_steps=n_steps).build(X_boot, y_boot)
+        gd_fit_time.append(time.time() - t)
+
+        t = time.time()
+        model_lbfgs = MultinomialLogRegLBFGS().build(X_boot, y_boot)
+        lbfgs_fit_time.append(time.time() - t)
+
+        probs_gd = model_gd.predict(X_oob)
+        probs_lbfgs = model_lbfgs.predict(X_oob)
+
+        gd_acc.append(accuracy(y_oob, probs_gd, classes))
+        gd_loss.append(log_loss(y_oob, probs_gd, classes))
+        lbfgs_acc.append(accuracy(y_oob, probs_lbfgs, classes))
+        lbfgs_loss.append(log_loss(y_oob, probs_lbfgs, classes))
+        base_acc.append(baseline_accuracy(y_oob))
+        base_loss.append(baseline_log_loss(y_oob, classes))
+
+        if first_iteration is None:  # save for convergence, similarity, stability
+            first_iteration = {
+                "model_gd": model_gd,
+                "model_lbfgs": model_lbfgs,
+                "X_boot": X_boot,
+                "y_boot": y_boot,
+                "X_oob": X_oob,
+                "y_oob": y_oob,
+            }
+
+        if (i + 1) % 5 == 0:
+            print(f"  {i + 1}/{n_boot} done")
+
+    return {
+        "gd": {
+            "acc": np.array(gd_acc),
+            "loss": np.array(gd_loss),
+            "fit_time": np.array(gd_fit_time),
+        },
+        "lbfgs": {
+            "acc": np.array(lbfgs_acc),
+            "loss": np.array(lbfgs_loss),
+            "fit_time": np.array(lbfgs_fit_time),
+        },
+        "base": {"acc": np.array(base_acc), "loss": np.array(base_loss)},
+        "first_iteration": first_iteration,
+    }
 
 
 # Convergence tracking
-# Runs gradient descent and records training NLL every log_every steps.
-# Used to find how many steps are needed to match L-BFGS-B's converged loss.
 def track_convergence(X_train, y_train, classes, lr=1.0, n_steps=1000, log_every=50):
     from solution1 import Node, softmax, neg_mean, matmul, add
 
@@ -105,7 +163,9 @@ def track_convergence(X_train, y_train, classes, lr=1.0, n_steps=1000, log_every
         selected.grad_fn = sel_grad
 
         loss = neg_mean(selected)
-        nll = -log_probs.data[np.arange(n_samples), class_indices].mean()
+        nll = -log_probs.data[
+            np.arange(n_samples), class_indices
+        ].mean()  # neg_mean divides by n*K, so compute directly
 
         if step % log_every == 0:
             loss_history.append((step, float(nll)))
@@ -119,44 +179,52 @@ def track_convergence(X_train, y_train, classes, lr=1.0, n_steps=1000, log_every
 
 
 # Printing results
-def print_performance(
-    y_train, y_test, probs_train, probs_test, classes, label, fit_time
-):
-    train_acc = accuracy(y_train, probs_train, classes)
-    test_acc = accuracy(y_test, probs_test, classes)
-    train_loss = log_loss(y_train, probs_train, classes)
-    test_loss = log_loss(y_test, probs_test, classes)
-
-    print(f"\n  {label}  (fit: {fit_time:.2f}s)")
-    print(f"  {'':30} {'Train':>8}  {'Test':>8}")
-    print(f"  {'Accuracy':<30} {train_acc:>8.3f}  {test_acc:>8.3f}")
-    print(f"  {'Log-loss':<30} {train_loss:>8.3f}  {test_loss:>8.3f}")
+def confidence_interval(samples):  # returns mean, 2.5th and 97.5th percentile
+    return samples.mean(), *np.percentile(samples, [2.5, 97.5])
 
 
-def print_baseline(y_train, y_test, classes):
-    print(f"\n  Baseline  (fit: 0.00s)")
-    print(f"  {'':30} {'Train':>8}  {'Test':>8}")
-    print(
-        f"  {'Accuracy (majority class)':<30} {baseline_accuracy(y_train):>8.3f}  {baseline_accuracy(y_test):>8.3f}"
+def print_performance(results):
+    def print_model(label, acc_samples, loss_samples, fit_time_samples=None):
+        acc_mean, acc_low, acc_high = confidence_interval(acc_samples)
+        loss_mean, loss_low, loss_high = confidence_interval(loss_samples)
+        time_str = (
+            f"{fit_time_samples.mean():.2f}s" if fit_time_samples is not None else "—"
+        )
+
+        print(f"\n  {label}  (fit: {time_str})")
+        print(f"  {'':30} {'Mean':>8}   {'95% CI'}")
+        print(f"  {'Accuracy':<30} {acc_mean:>8.3f}   [{acc_low:.3f}, {acc_high:.3f}]")
+        print(
+            f"  {'Log-loss':<30} {loss_mean:>8.3f}   [{loss_low:.3f}, {loss_high:.3f}]"
+        )
+
+    print_model("Baseline", results["base"]["acc"], results["base"]["loss"])
+    print_model(
+        "Solution 1: gradient descent  (lr=1.0, steps=200)",
+        results["gd"]["acc"],
+        results["gd"]["loss"],
+        results["gd"]["fit_time"],
     )
-    print(
-        f"  {'Log-loss (uniform)':<30} {baseline_log_loss(y_train, classes):>8.3f}  {baseline_log_loss(y_test, classes):>8.3f}"
+    print_model(
+        "Solution 2: L-BFGS-B",
+        results["lbfgs"]["acc"],
+        results["lbfgs"]["loss"],
+        results["lbfgs"]["fit_time"],
     )
 
 
 def print_convergence(loss_history, lbfgs_loss):
-    # Show GD loss at each checkpoint alongside L-BFGS-B's converged loss
-    print(f"\n  Convergence")
-    print(f"  {'Step':>6}  {'GD loss':>10}  {'L-BFGS-B loss':>14}")
+    print(f"\n  Convergence  (L-BFGS-B train log-loss: {lbfgs_loss:.4f})")
+    print(f"  {'Step':>6}  {'GD log-loss':>12}  {'L-BFGS-B':>10}")
     for step, loss in loss_history:
-        print(f"  {step:>6}  {loss:>10.4f}  {lbfgs_loss:>14.4f}")
+        print(f"  {step:>6}  {loss:>12.4f}  {lbfgs_loss:>10.4f}")
 
 
 def print_similarity(probs_gd, probs_lbfgs, classes):
     pred_gd = classes[probs_gd.argmax(axis=1)]
     pred_lbfgs = classes[probs_lbfgs.argmax(axis=1)]
 
-    print(f"\n  Prediction similarity on test set (gradient descent vs L-BFGS-B)")
+    print(f"\n  Prediction similarity on OOB samples (first bootstrap iteration)")
     print(f"  Class prediction agreement:      {np.mean(pred_gd == pred_lbfgs):.3f}")
     print(
         f"  Mean absolute prob difference:   {np.abs(probs_gd - probs_lbfgs).mean():.4f}"
@@ -164,7 +232,7 @@ def print_similarity(probs_gd, probs_lbfgs, classes):
 
 
 def print_stability(probs_gd, probs_lbfgs):
-    print(f"\n  Numerical stability on test set")
+    print(f"\n  Numerical stability on OOB samples (first bootstrap iteration)")
     print(f"  {'':30} {'GD':>8}  {'L-BFGS-B':>10}")
     print(
         f"  {'NaN in probs':<30} {str(np.isnan(probs_gd).any()):>8}  {str(np.isnan(probs_lbfgs).any()):>10}"
@@ -183,53 +251,28 @@ if __name__ == "__main__":
     X, y, feature_names = load_and_prepare("dataset.csv")
     classes = np.unique(y)
 
-    X_train, X_test, y_train, y_test = split(X, y)
-    print(f"Train: {len(y_train)}  Test: {len(y_test)}")
+    print("Running bootstrap (n=25)...")
+    results = bootstrap(X, y, classes, n_boot=25)
+    print(f"  {len(results['gd']['acc'])} valid resamples")
 
-    # Solution 1: gradient descent (200 steps, not fully converged — see convergence section)
-    t = time.time()
-    model_gd = MultinomialLogRegGD(lr=1.0, n_steps=200).build(X_train, y_train)
-    time_gd = time.time() - t
-    probs_gd_train = model_gd.predict(X_train)
-    probs_gd_test = model_gd.predict(X_test)
+    first = results["first_iteration"]
 
-    # Solution 2: L-BFGS-B (fully converged)
-    t = time.time()
-    model_lbfgs = MultinomialLogRegLBFGS().build(X_train, y_train)
-    time_lbfgs = time.time() - t
-    probs_lbfgs_train = model_lbfgs.predict(X_train)
-    probs_lbfgs_test = model_lbfgs.predict(X_test)
+    print("\nPERFORMANCE  (OOB evaluation, 95% bootstrap CI)")
+    print_performance(results)
 
-    print("\nPERFORMANCE")
-    print_baseline(y_train, y_test, classes)
-    print_performance(
-        y_train,
-        y_test,
-        probs_gd_train,
-        probs_gd_test,
-        classes,
-        "Solution 1: gradient descent  (lr=1.0, steps=200)",
-        fit_time=time_gd,
+    print("\nCONVERGENCE  (first bootstrap iteration)")
+    lbfgs_train_loss = log_loss(
+        first["y_boot"], first["model_lbfgs"].predict(first["X_boot"]), classes
     )
-    print_performance(
-        y_train,
-        y_test,
-        probs_lbfgs_train,
-        probs_lbfgs_test,
-        classes,
-        "Solution 2: L-BFGS-B",
-        fit_time=time_lbfgs,
-    )
-
-    print("\nCONVERGENCE")
-    lbfgs_train_loss = log_loss(y_train, probs_lbfgs_train, classes)
     loss_history = track_convergence(
-        X_train, y_train, classes, lr=1.0, n_steps=1000, log_every=50
+        first["X_boot"], first["y_boot"], classes, lr=1.0, n_steps=1000, log_every=50
     )
     print_convergence(loss_history, lbfgs_train_loss)
 
     print("\nSIMILARITY")
-    print_similarity(probs_gd_test, probs_lbfgs_test, classes)
+    probs_gd_oob = first["model_gd"].predict(first["X_oob"])
+    probs_lbfgs_oob = first["model_lbfgs"].predict(first["X_oob"])
+    print_similarity(probs_gd_oob, probs_lbfgs_oob, classes)
 
     print("\nNUMERICAL STABILITY")
-    print_stability(probs_gd_test, probs_lbfgs_test)
+    print_stability(probs_gd_oob, probs_lbfgs_oob)
