@@ -20,7 +20,7 @@ The output layer uses **softmax**, which converts raw scores into a probability 
 
 $$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}$$
 
-Each layer includes a bias, implemented by prepending a column of ones to the input before each matrix multiply. Each weight matrix therefore has shape `(n_inputs + 1, n_outputs)`, where the first row holds the bias weights. The `fit()` method returns a separate model object. Its `predict()` method returns the full probability matrix over classes, and its `weights()` method returns the list of weight matrices following this shape convention.
+Each layer includes a bias, implemented as a standard bias neuron that always outputs 1. This is folded into the matrix multiply by prepending a column of ones to the input, so instead of computing `Z = A @ W + b` separately, we compute `Z = A_with_bias @ W`. Each weight matrix therefore has shape `(n_inputs + 1, n_outputs)`, where the first row holds the bias weights. The `fit()` method returns a separate model object. Its `predict()` method returns the full probability matrix over classes, and its `weights()` method returns the list of weight matrices following this shape convention.
 
 ### Loss Function
 
@@ -87,17 +87,18 @@ For each weight in the network, we perturbed it by $\varepsilon$, measured the c
 
 $$\text{relative difference} = \frac{|\nabla_{\text{analytical}} - \nabla_{\text{numerical}}|}{|\nabla_{\text{analytical}}| + |\nabla_{\text{numerical}}|}$$
 
-Results on a small XOR dataset:
+Results are reported per weight matrix. A network with one hidden layer has two weight matrices: weight matrix 1 connects input to hidden, weight matrix 2 connects hidden to output.
 
-| Network | Layer | Max relative difference |
+| Dataset | Weight matrix | Max relative difference |
 |---|---|---|
-| One hidden layer `[3]` | Layer 1 | 1.61e-06 |
-| One hidden layer `[3]` | Layer 2 | 2.49e-06 |
-| Two hidden layers `[3, 2]` | Layer 1 | 9.07e-06 |
-| Two hidden layers `[3, 2]` | Layer 2 | 1.70e-06 |
-| Two hidden layers `[3, 2]` | Layer 3 | 1.48e-05 |
+| XOR | 1 (input → hidden) | 1.61e-06 |
+| XOR | 2 (hidden → output) | 2.49e-06 |
+| `doughnut.tab` | 1 (input → hidden) | 6.37e-07 |
+| `doughnut.tab` | 2 (hidden → output) | 2.24e-06 |
+| `squares.tab` | 1 (input → hidden) | 6.48e-07 |
+| `squares.tab` | 2 (hidden → output) | 2.05e-06 |
 
-The relative differences are in the range of $10^{-6}$ to $10^{-5}$, which is consistent with the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct.
+The relative differences are in the range of $10^{-7}$ to $10^{-6}$, which is well within the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct across all tested datasets.
 
 ---
 

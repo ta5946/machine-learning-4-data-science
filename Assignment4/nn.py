@@ -249,11 +249,19 @@ def gradient_check(X, y, units):
     analytical = compute_analytical_gradients(X, Y, weights)
     numerical = compute_numerical_gradients(X, Y, weights)
 
+    # Layer names describe the connection each weight matrix represents.
+    # A network with one hidden layer has two sets of weights:
+    # Layer 1 (input -> hidden) and Layer 2 (hidden -> output).
+    layer_names = [f"Layer {i + 1}" for i in range(len(weights))]
+    layer_names[0] = layer_names[0] + " (input -> hidden)"
+    if len(weights) > 1:
+        layer_names[-1] = layer_names[-1] + " (hidden -> output)"
+
     print("Gradient check results (analytical vs numerical):")
     for layer_index, (A_grad, N_grad) in enumerate(zip(analytical, numerical)):
         # Relative difference tells us how closely the two gradients agree
         difference = np.abs(A_grad - N_grad) / (np.abs(A_grad) + np.abs(N_grad) + 1e-15)
-        print(f"  Layer {layer_index + 1}: max relative difference = {np.max(difference):.2e}")
+        print(f"  {layer_names[layer_index]}: max relative difference = {np.max(difference):.2e}")
 
 
 # --- Helper: classification accuracy ---
@@ -304,28 +312,44 @@ if __name__ == "__main__":
                                     [0, 0, 1]], decimal=3)
     print("Template test passed!")
 
+    # Load datasets used for both gradient check and fitting
+    X_d, y_d = doughnut()
+    X_s, y_s = squares()
+
     # --- Gradient check ---
-    # We use a small XOR dataset so the numerical check runs quickly.
-    X_check = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float)
-    y_check = np.array([0, 1, 1, 0])
+    # Verify analytical gradients against numerical approximations on multiple
+    # datasets to confirm backprop is correct before using it for training.
 
-    print("\nRunning gradient check on a one hidden layer network...")
-    gradient_check(X_check, y_check, units=[3])
+    print("\nRunning gradient check on XOR (from test_nn.py)...")
+    X_xor = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float)
+    y_xor = np.array([0, 1, 1, 0])
+    gradient_check(X_xor, y_xor, units=[3])
 
-    print("\nRunning gradient check on a two hidden layer network...")
-    gradient_check(X_check, y_check, units=[3, 2])
+    print("\nRunning gradient check on doughnut.tab...")
+    gradient_check(X_d, y_d, units=[3])
+
+    print("\nRunning gradient check on squares.tab...")
+    gradient_check(X_s, y_s, units=[4])
 
     # --- Fit doughnut.tab and squares.tab ---
     # We look for the smallest network that perfectly classifies the training data.
 
     print("\nFitting doughnut.tab:")
-    X_d, y_d = doughnut()
+    minimal_d = None
     for units in [[2], [3], [4], [5]]:
         model = ANNClassification(units=units, lambda_=0).fit(X_d, y_d, n_epochs=5000)
-        print(f"  units={units}: accuracy={accuracy(model, X_d, y_d):.3f}")
+        acc = accuracy(model, X_d, y_d)
+        print(f"  units={units}: accuracy={acc:.3f}")
+        if acc == 1.0 and minimal_d is None:
+            minimal_d = units
+    print(f"  Minimal network: units={minimal_d}")
 
     print("\nFitting squares.tab:")
-    X_s, y_s = squares()
+    minimal_s = None
     for units in [[2], [3], [4], [5]]:
         model = ANNClassification(units=units, lambda_=0).fit(X_s, y_s, n_epochs=5000)
-        print(f"  units={units}: accuracy={accuracy(model, X_s, y_s):.3f}")
+        acc = accuracy(model, X_s, y_s)
+        print(f"  units={units}: accuracy={acc:.3f}")
+        if acc == 1.0 and minimal_s is None:
+            minimal_s = units
+    print(f"  Minimal network: units={minimal_s}")
