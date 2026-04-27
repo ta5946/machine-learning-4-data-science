@@ -79,6 +79,7 @@ class ANNClassification:
     def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=32, seed=42):
         # Fix random seed for reproducibility
         np.random.seed(seed)
+
         m, n_features = X.shape
         n_classes = len(np.unique(y))
 
@@ -157,6 +158,112 @@ class ANNRegression:
     pass
 
 
+# --- Gradient check ---
+
+def compute_analytical_gradients(X, Y, weights):
+    # Run one full forward and backward pass to get analytical gradients.
+    # This mirrors exactly what happens inside fit() during training.
+    m = X.shape[0]
+
+    # Forward pass
+    layer_activations = [X]
+    A = X
+    for layer_index, W in enumerate(weights):
+        A_with_bias = np.hstack([np.ones((A.shape[0], 1)), A])
+        Z = A_with_bias @ W
+        is_last_layer = (layer_index == len(weights) - 1)
+        A = softmax(Z) if is_last_layer else sigmoid(Z)
+        layer_activations.append(A)
+
+    # Backward pass
+    delta = layer_activations[-1] - Y
+    analytical_gradients = []
+    for layer_index in reversed(range(len(weights))):
+        A_prev = layer_activations[layer_index]
+        A_prev_with_bias = np.hstack([np.ones((A_prev.shape[0], 1)), A_prev])
+        dW = A_prev_with_bias.T @ delta / m
+        analytical_gradients.insert(0, dW)
+        if layer_index > 0:
+            delta = (delta @ weights[layer_index].T)[:, 1:] * sigmoid_derivative(layer_activations[layer_index])
+
+    return analytical_gradients
+
+
+def compute_numerical_gradients(X, Y, weights, epsilon=1e-5):
+    # Approximate the gradient for each weight using the definition of the derivative:
+    # df/dw = (f(w + epsilon) - f(w)) / epsilon
+    # We perturb one weight at a time and measure how the loss changes.
+    numerical_gradients = [np.zeros_like(W) for W in weights]
+
+    # Compute the base loss before any perturbation
+    A = X
+    for layer_index, W in enumerate(weights):
+        A_with_bias = np.hstack([np.ones((A.shape[0], 1)), A])
+        Z = A_with_bias @ W
+        is_last_layer = (layer_index == len(weights) - 1)
+        A = softmax(Z) if is_last_layer else sigmoid(Z)
+    base_loss = cross_entropy_loss(A, Y)
+
+    # Perturb each weight one at a time
+    for layer_index in range(len(weights)):
+        for row in range(weights[layer_index].shape[0]):
+            for col in range(weights[layer_index].shape[1]):
+                # Nudge this single weight up by epsilon
+                weights[layer_index][row, col] += epsilon
+
+                # Run forward pass with the perturbed weight
+                A = X
+                for forward_index, W in enumerate(weights):
+                    A_with_bias = np.hstack([np.ones((A.shape[0], 1)), A])
+                    Z = A_with_bias @ W
+                    is_last_layer = (forward_index == len(weights) - 1)
+                    A = softmax(Z) if is_last_layer else sigmoid(Z)
+                perturbed_loss = cross_entropy_loss(A, Y)
+
+                # Numerical gradient: (f(w + epsilon) - f(w)) / epsilon
+                numerical_gradients[layer_index][row, col] = (perturbed_loss - base_loss) / epsilon
+
+                # Restore the weight before moving to the next one
+                weights[layer_index][row, col] -= epsilon
+
+    return numerical_gradients
+
+
+def gradient_check(X, y, units):
+    # Compare analytical and numerical gradients on a small network.
+    # Small differences confirm that our backprop implementation is correct.
+    n_classes = len(np.unique(y))
+    Y = one_hot_encode(y, n_classes)
+    layer_sizes = [X.shape[1]] + units + [n_classes]
+
+    # Initialize weights for the check
+    np.random.seed(42)
+    weights = []
+    for layer_index in range(len(layer_sizes) - 1):
+        n_in = layer_sizes[layer_index]
+        n_out = layer_sizes[layer_index + 1]
+        xavier_limit = np.sqrt(2.0 / (n_in + n_out))
+        W = np.random.uniform(-xavier_limit, xavier_limit, (n_in + 1, n_out))
+        weights.append(W)
+
+    analytical = compute_analytical_gradients(X, Y, weights)
+    numerical = compute_numerical_gradients(X, Y, weights)
+
+    print("Gradient check results (analytical vs numerical):")
+    for layer_index, (A_grad, N_grad) in enumerate(zip(analytical, numerical)):
+        # Relative difference tells us how closely the two gradients agree
+        difference = np.abs(A_grad - N_grad) / (np.abs(A_grad) + np.abs(N_grad) + 1e-15)
+        print(f"  Layer {layer_index + 1}: max relative difference = {np.max(difference):.2e}")
+
+
+# --- Helper: classification accuracy ---
+
+def accuracy(model, X, y):
+    # Fraction of samples where the predicted class matches the true class
+    predicted_classes = np.argmax(model.predict(X), axis=1)
+    return np.mean(predicted_classes == y)
+
+
 # --- Data reading ---
 
 def read_tab(fn, adict):
@@ -179,6 +286,8 @@ def squares():
 
 
 if __name__ == "__main__":
+
+    # --- Template test ---
     fitter = ANNClassification(units=[3, 4], lambda_=0)
     X = np.array([
         [1, 2, 3],
@@ -194,3 +303,29 @@ if __name__ == "__main__":
                                     [0, 1, 0],
                                     [0, 0, 1]], decimal=3)
     print("Template test passed!")
+
+    # --- Gradient check ---
+    # We use a small XOR dataset so the numerical check runs quickly.
+    X_check = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float)
+    y_check = np.array([0, 1, 1, 0])
+
+    print("\nRunning gradient check on a one hidden layer network...")
+    gradient_check(X_check, y_check, units=[3])
+
+    print("\nRunning gradient check on a two hidden layer network...")
+    gradient_check(X_check, y_check, units=[3, 2])
+
+    # --- Fit doughnut.tab and squares.tab ---
+    # We look for the smallest network that perfectly classifies the training data.
+
+    print("\nFitting doughnut.tab:")
+    X_d, y_d = doughnut()
+    for units in [[2], [3], [4], [5]]:
+        model = ANNClassification(units=units, lambda_=0).fit(X_d, y_d, n_epochs=5000)
+        print(f"  units={units}: accuracy={accuracy(model, X_d, y_d):.3f}")
+
+    print("\nFitting squares.tab:")
+    X_s, y_s = squares()
+    for units in [[2], [3], [4], [5]]:
+        model = ANNClassification(units=units, lambda_=0).fit(X_s, y_s, n_epochs=5000)
+        print(f"  units={units}: accuracy={accuracy(model, X_s, y_s):.3f}")

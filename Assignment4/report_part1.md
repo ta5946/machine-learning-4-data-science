@@ -1,0 +1,130 @@
+# Part 1: ANNClassification
+
+## Task
+
+Implement a multi-layer fully-connected artificial neural network for classification in the "old-school" style, without autograd, using analytically derived gradients and gradient descent for optimization. The implementation must support an arbitrary number of hidden layers of any size, include a bias at each layer, use sigmoid activation functions in hidden layers, and be structured so that the corresponding tests in `test_nn.py` pass. Only `numpy` is allowed as an external library.
+
+---
+
+## Implementation
+
+### Architecture
+
+The network is organized as a sequence of fully connected layers: an input layer, zero or more hidden layers, and an output layer. The input and output sizes are determined automatically from the data. The hidden layer sizes are specified by the user via the `units` parameter, where `units=[]` is a valid input meaning no hidden layers.
+
+Hidden layers use the **sigmoid** activation function as required by the instructions:
+
+$$\sigma(z) = \frac{1}{1 + e^{-z}}$$
+
+The output layer uses **softmax**, which converts raw scores into a probability distribution over classes:
+
+$$\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_j e^{z_j}}$$
+
+Each layer includes a bias, implemented by prepending a column of ones to the input before each matrix multiply. Each weight matrix therefore has shape `(n_inputs + 1, n_outputs)`, where the first row holds the bias weights. The `fit()` method returns a separate model object. Its `predict()` method returns the full probability matrix over classes, and its `weights()` method returns the list of weight matrices following this shape convention.
+
+### Loss Function
+
+Training minimizes the **cross entropy loss** between the predicted class probabilities and the true one-hot encoded targets:
+
+$$E = -\frac{1}{m} \sum_{i=1}^{m} \sum_{k=1}^{K} t_{ik} \log(y_{ik})$$
+
+where $t$ is the one-hot target matrix, $y$ is the softmax output, $m$ is the number of samples, and $K$ is the number of classes.
+
+### Forward Pass
+
+For each layer $\ell$, the network computes:
+
+$$Z^{(\ell)} = A^{(\ell-1)}_{\text{bias}} \, W^{(\ell)}, \quad A^{(\ell)} = \sigma(Z^{(\ell)})$$
+
+where $A^{(\ell-1)}_{\text{bias}}$ is the activation from the previous layer with a bias column of ones prepended. At the output layer, softmax is applied instead of sigmoid. All layer activations are stored during the forward pass as they are needed in backpropagation.
+
+### Backward Pass
+
+The gradient derivation follows Sadowski's backpropagation notes. For softmax with cross entropy, the output error simplifies to:
+
+$$\delta^{(L)} = A^{(L)} - T$$
+
+This is the same result derived in the notes for both logistic and softmax outputs. The weight gradient for each layer is then:
+
+$$\frac{\partial E}{\partial W^{(\ell)}} = \frac{1}{m} \left( A^{(\ell-1)}_{\text{bias}} \right)^{\top} \delta^{(\ell)}$$
+
+The error signal is propagated to lower layers as:
+
+$$\delta^{(\ell)} = \left( \delta^{(\ell+1)} \left( W^{(\ell+1)} \right)^{\top} \right)_{[1:]} \odot \sigma'(A^{(\ell)})$$
+
+where $[\,1:\,]$ denotes dropping the bias row, $\odot$ is elementwise multiplication, and $\sigma'$ is the sigmoid derivative:
+
+$$\sigma'(A) = A \odot (1 - A)$$
+
+### Optimization
+
+Training uses **mini-batch gradient descent**. Mini-batch was chosen over full-batch gradient descent to scale better to larger datasets. Data is reshuffled before each epoch so batches differ across epochs.
+
+| Parameter | Value | Reason |
+|---|---|---|
+| Learning rate | 0.5 | Converges reliably with Xavier initialization and sigmoid activations |
+| Epochs | 10000 | Sufficient for convergence on small to medium datasets |
+| Batch size | 32 | Standard mini-batch size, scales well to larger datasets |
+| Random seed | 42 | Fixed for reproducibility across platforms |
+
+Regularization is not applied in part 1. The `lambda_` parameter is accepted but ignored.
+
+### Weight Initialization
+
+Weights are initialized using **Xavier initialization**, which is recommended by the course notes for sigmoid activations. It keeps the variance of activations stable across layers by drawing weights uniformly from:
+
+$$W \sim \mathcal{U}\left(-\sqrt{\frac{2}{n_{\text{in}} + n_{\text{out}}}},\ \sqrt{\frac{2}{n_{\text{in}} + n_{\text{out}}}}\right)$$
+
+---
+
+## Gradient Verification
+
+To verify that the analytically derived gradients are correct, we compared them to numerically approximated gradients using the definition of the derivative:
+
+$$\frac{\partial E}{\partial w} \approx \frac{E(w + \varepsilon) - E(w)}{\varepsilon}, \quad \varepsilon = 10^{-5}$$
+
+For each weight in the network, we perturbed it by $\varepsilon$, measured the change in loss, and compared the result to the analytical gradient from backpropagation. The relative difference between the two was computed as:
+
+$$\text{relative difference} = \frac{|\nabla_{\text{analytical}} - \nabla_{\text{numerical}}|}{|\nabla_{\text{analytical}}| + |\nabla_{\text{numerical}}|}$$
+
+Results on a small XOR dataset:
+
+| Network | Layer | Max relative difference |
+|---|---|---|
+| One hidden layer `[3]` | Layer 1 | 1.61e-06 |
+| One hidden layer `[3]` | Layer 2 | 2.49e-06 |
+| Two hidden layers `[3, 2]` | Layer 1 | 9.07e-06 |
+| Two hidden layers `[3, 2]` | Layer 2 | 1.70e-06 |
+| Two hidden layers `[3, 2]` | Layer 3 | 1.48e-05 |
+
+The relative differences are in the range of $10^{-6}$ to $10^{-5}$, which is consistent with the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct.
+
+---
+
+## Results on Datasets
+
+We searched for the smallest network that perfectly classifies the training data on `doughnut.tab` and `squares.tab`, using one hidden layer and increasing the number of units until 100% training accuracy was reached. Training used 5000 epochs, which was sufficient for convergence on both datasets.
+
+### `doughnut.tab`
+
+| Hidden units | Training accuracy |
+|---|---|
+| 2 | 0.903 |
+| 3 | 1.000 |
+| 4 | 1.000 |
+| 5 | 1.000 |
+
+**Minimal network:** one hidden layer with **3 units**.
+
+### `squares.tab`
+
+| Hidden units | Training accuracy |
+|---|---|
+| 2 | 0.733 |
+| 3 | 0.738 |
+| 4 | 1.000 |
+| 5 | 1.000 |
+
+**Minimal network:** one hidden layer with **4 units**.
+
+`squares.tab` requires one more hidden unit than `doughnut.tab`, which is consistent with it having a more complex decision boundary: four separate square regions rather than a single enclosed ring shape.
