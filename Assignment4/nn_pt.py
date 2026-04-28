@@ -22,10 +22,12 @@ def softmax(z):
 # --- Trained model returned by fit() ---
 
 class ANNClassificationModel:
-    def __init__(self, linear_layers):
+    def __init__(self, linear_layers, loss_history=None):
         # Each nn.Linear holds weight (n_out, n_in) and bias (n_out,),
         # corresponding to the (n_in + 1, n_out) folded matrix used in nn.py.
         self._linear_layers = linear_layers
+        # List of (epoch, loss) pairs if log_every was set during fit, else empty.
+        self.loss_history = loss_history if loss_history is not None else []
 
     def predict(self, X):
         # Run the forward pass on new data to get class probabilities.
@@ -60,7 +62,7 @@ class ANNClassification:
         self.units = units
         self.lambda_ = lambda_
 
-    def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=64, seed=42):
+    def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=64, seed=42, log_every=None):
         # Fix random seed for reproducibility
         np.random.seed(seed)
 
@@ -98,7 +100,8 @@ class ANNClassification:
         # --- Mini-batch gradient descent ---
         # Each epoch goes through all data in small batches.
         # We shuffle before each epoch so batches differ each time.
-        for _ in range(n_epochs):
+        loss_history = []
+        for epoch in range(n_epochs):
             shuffle_order = np.random.permutation(m)
             X_shuffled = X_tensor[shuffle_order]
             y_shuffled = y_tensor[shuffle_order]
@@ -123,7 +126,18 @@ class ANNClassification:
                 loss.backward()
                 optimizer.step()
 
-        return ANNClassificationModel(linear_layers)
+            # Log full-data loss every log_every epochs
+            if log_every is not None and epoch % log_every == 0:
+                with torch.no_grad():
+                    A = X_tensor
+                    for layer_index, linear in enumerate(linear_layers):
+                        Z = linear(A)
+                        is_last_layer = (layer_index == len(linear_layers) - 1)
+                        A = softmax(Z) if is_last_layer else torch.sigmoid(Z)
+                    loss_val = torch.nn.functional.nll_loss(torch.log(A + 1e-15), y_tensor).item()
+                    loss_history.append((epoch, loss_val))
+
+        return ANNClassificationModel(linear_layers, loss_history)
 
 
 class ANNRegression:
@@ -181,7 +195,8 @@ def find_minimal_network(X, y, dataset_name, n_epochs=5000):
 # --- Data reading ---
 
 def read_tab(fn, adict):
-    content = list(csv.reader(open(fn, "rt"), delimiter="\t"))
+    with open(fn, "rt") as f:
+        content = list(csv.reader(f, delimiter="\t"))
     legend = content[0][1:]
     data = content[1:]
     X = np.array([d[1:] for d in data], dtype=float)
@@ -190,12 +205,12 @@ def read_tab(fn, adict):
 
 
 def doughnut():
-    legend, X, y = read_tab("doughnut.tab", {"C1": 0, "C2": 1})
+    _legend, X, y = read_tab("doughnut.tab", {"C1": 0, "C2": 1})
     return X, y
 
 
 def squares():
-    legend, X, y = read_tab("squares.tab", {"C1": 0, "C2": 1})
+    _legend, X, y = read_tab("squares.tab", {"C1": 0, "C2": 1})
     return X, y
 
 
