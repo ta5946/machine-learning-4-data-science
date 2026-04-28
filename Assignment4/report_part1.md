@@ -77,9 +77,44 @@ $$W \sim \mathcal{U}\left(-\sqrt{\frac{2}{n_{\text{in}} + n_{\text{out}}}},\ \sq
 
 ---
 
+## Results on Datasets
+
+We searched for the network with the fewest total parameters (weights) that perfectly classifies the training data on `doughnut.tab` and `squares.tab`. The search covered all single hidden layer networks up to 5 neurons and all two hidden layer networks up to 3 neurons per layer, for a total of 14 configurations. The number of weights includes bias weights across all weight matrices. Training used 5000 epochs per configuration, which was sufficient for convergence on both datasets.
+
+### `doughnut.tab`
+
+| Architecture | Training accuracy | Total weights |
+|---|---|---|
+| `[1]` | 0.681 | 7 |
+| `[2]` | 0.903 | 12 |
+| `[3]` | 1.000 | 17 |
+| `[1, 2]` | 0.685 | 13 |
+| `[2, 1]` | 0.699 | 13 |
+| `[3, 2]` | 1.000 | 23 |
+| ... | ... | ... |
+
+**Minimal network:** `units=[3]` with **17 weights**.
+
+### `squares.tab`
+
+| Architecture | Training accuracy | Total weights |
+|---|---|---|
+| `[3]` | 0.738 | 17 |
+| `[4]` | 1.000 | 22 |
+| `[2, 1]` | 0.892 | 13 |
+| `[2, 2]` | 1.000 | 18 |
+| `[3, 2]` | 1.000 | 23 |
+| ... | ... | ... |
+
+**Minimal network:** `units=[2, 2]` with **18 weights**.
+
+`squares.tab` requires a two hidden layer network to achieve perfect accuracy with fewer parameters than the best single hidden layer solution (`units=[4]` with 22 weights). This reflects the more complex decision boundary: four separate square regions rather than a single enclosed ring shape.
+
+---
+
 ## Gradient Verification
 
-To verify that the analytically derived gradients are correct, we compared them to numerically approximated gradients using the definition of the derivative:
+After identifying the minimal architectures, we verified that the analytically derived gradients are correct by comparing them to numerically approximated gradients using the definition of the derivative:
 
 $$\frac{\partial E}{\partial w} \approx \frac{E(w + \varepsilon) - E(w)}{\varepsilon}, \quad \varepsilon = 10^{-5}$$
 
@@ -87,45 +122,16 @@ For each weight in the network, we perturbed it by $\varepsilon$, measured the c
 
 $$\text{relative difference} = \frac{|\nabla_{\text{analytical}} - \nabla_{\text{numerical}}|}{|\nabla_{\text{analytical}}| + |\nabla_{\text{numerical}}|}$$
 
-Results are reported per weight matrix. A network with one hidden layer has two weight matrices: weight matrix 1 connects input to hidden, weight matrix 2 connects hidden to output.
+Results are reported per weight matrix using the minimal architectures found above. XOR is also included as a sanity check on a known nonlinear problem.
 
-| Dataset | Weight matrix | Max relative difference |
-|---|---|---|
-| XOR | 1 (input → hidden) | 1.61e-06 |
-| XOR | 2 (hidden → output) | 2.49e-06 |
-| `doughnut.tab` | 1 (input → hidden) | 6.37e-07 |
-| `doughnut.tab` | 2 (hidden → output) | 2.24e-06 |
-| `squares.tab` | 1 (input → hidden) | 6.48e-07 |
-| `squares.tab` | 2 (hidden → output) | 2.05e-06 |
+| Dataset | Architecture | Weight matrix | Max relative difference |
+|---|---|---|---|
+| XOR | `[3]` | Layer 1 (input → hidden) | 1.61e-06 |
+| XOR | `[3]` | Layer 2 (hidden → output) | 2.49e-06 |
+| `doughnut.tab` | `[3]` | Layer 1 (input → hidden) | 6.40e-07 |
+| `doughnut.tab` | `[3]` | Layer 2 (hidden → output) | 2.24e-06 |
+| `squares.tab` | `[2, 2]` | Layer 1 (input → hidden) | 7.58e-07 |
+| `squares.tab` | `[2, 2]` | Layer 2 (hidden → hidden) | 1.40e-06 |
+| `squares.tab` | `[2, 2]` | Layer 3 (hidden → output) | 3.30e-06 |
 
-The relative differences are in the range of $10^{-7}$ to $10^{-6}$, which is well within the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct across all tested datasets.
-
----
-
-## Results on Datasets
-
-We searched for the smallest network that perfectly classifies the training data on `doughnut.tab` and `squares.tab`, using one hidden layer and increasing the number of units until 100% training accuracy was reached. Training used 5000 epochs, which was sufficient for convergence on both datasets.
-
-### `doughnut.tab`
-
-| Hidden units | Training accuracy |
-|---|---|
-| 2 | 0.903 |
-| 3 | 1.000 |
-| 4 | 1.000 |
-| 5 | 1.000 |
-
-**Minimal network:** one hidden layer with **3 units**.
-
-### `squares.tab`
-
-| Hidden units | Training accuracy |
-|---|---|
-| 2 | 0.733 |
-| 3 | 0.738 |
-| 4 | 1.000 |
-| 5 | 1.000 |
-
-**Minimal network:** one hidden layer with **4 units**.
-
-`squares.tab` requires one more hidden unit than `doughnut.tab`, which is consistent with it having a more complex decision boundary: four separate square regions rather than a single enclosed ring shape.
+The relative differences are in the range of $10^{-7}$ to $10^{-6}$, which is well within the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct across all tested datasets and architectures.

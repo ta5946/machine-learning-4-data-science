@@ -229,7 +229,7 @@ def compute_numerical_gradients(X, Y, weights, epsilon=1e-5):
     return numerical_gradients
 
 
-def gradient_check(X, y, units):
+def gradient_check(X, y, units, seed=42):
     # Compare analytical and numerical gradients on a small network.
     # Small differences confirm that our backprop implementation is correct.
     n_classes = len(np.unique(y))
@@ -237,7 +237,7 @@ def gradient_check(X, y, units):
     layer_sizes = [X.shape[1]] + units + [n_classes]
 
     # Initialize weights for the check
-    np.random.seed(42)
+    np.random.seed(seed)
     weights = []
     for layer_index in range(len(layer_sizes) - 1):
         n_in = layer_sizes[layer_index]
@@ -250,10 +250,12 @@ def gradient_check(X, y, units):
     numerical = compute_numerical_gradients(X, Y, weights)
 
     # Layer names describe the connection each weight matrix represents.
-    # A network with one hidden layer has two sets of weights:
-    # Layer 1 (input -> hidden) and Layer 2 (hidden -> output).
+    # For example, a network with two hidden layers has three weight matrices:
+    # Layer 1 (input -> hidden), Layer 2 (hidden -> hidden), Layer 3 (hidden -> output).
     layer_names = [f"Layer {i + 1}" for i in range(len(weights))]
     layer_names[0] = layer_names[0] + " (input -> hidden)"
+    for i in range(1, len(weights) - 1):
+        layer_names[i] = layer_names[i] + " (hidden -> hidden)"
     if len(weights) > 1:
         layer_names[-1] = layer_names[-1] + " (hidden -> output)"
 
@@ -261,7 +263,7 @@ def gradient_check(X, y, units):
     for layer_index, (A_grad, N_grad) in enumerate(zip(analytical, numerical)):
         # Relative difference tells us how closely the two gradients agree
         difference = np.abs(A_grad - N_grad) / (np.abs(A_grad) + np.abs(N_grad) + 1e-15)
-        print(f"  {layer_names[layer_index]}: max relative difference = {np.max(difference):.2e}")
+        print(f"  {layer_names[layer_index]}: max relative weight difference = {np.max(difference):.2e}")
 
 
 # --- Helper: classification accuracy ---
@@ -270,6 +272,45 @@ def accuracy(model, X, y):
     # Fraction of samples where the predicted class matches the true class
     predicted_classes = np.argmax(model.predict(X), axis=1)
     return np.mean(predicted_classes == y)
+
+
+# --- Helper: count total weights in a network ---
+
+def count_weights(units, n_features, n_classes):
+    # Total number of weights including bias weights across all weight matrices
+    layer_sizes = [n_features] + units + [n_classes]
+    return sum((layer_sizes[i] + 1) * layer_sizes[i + 1] for i in range(len(layer_sizes) - 1))
+
+
+# --- Helper: find the minimal network for a dataset ---
+
+def find_minimal_network(X, y, dataset_name, n_epochs=5000):
+    # Search all single hidden layer networks up to 5 neurons and all
+    # two hidden layer networks up to 3 neurons per layer.
+    # 5000 epochs is sufficient for convergence on simple 2D datasets.
+    configs = [
+        [1], [2], [3], [4], [5],
+        [1, 1], [1, 2], [1, 3],
+        [2, 1], [2, 2], [2, 3],
+        [3, 1], [3, 2], [3, 3],
+    ]
+
+    print(f"\nFitting {dataset_name}:")
+    n_features = X.shape[1]
+    n_classes = len(np.unique(y))
+    best_units = None
+    best_weights = np.inf
+
+    for units in configs:
+        model = ANNClassification(units=units, lambda_=0).fit(X, y, n_epochs=n_epochs)
+        acc = accuracy(model, X, y)
+        n_weights = count_weights(units, n_features, n_classes)
+        print(f"  units={units}: accuracy={acc:.3f}, weights={n_weights}")
+        if acc == 1.0 and n_weights < best_weights:
+            best_weights = n_weights
+            best_units = units
+
+    print(f"  Minimal network: units={best_units} with {best_weights} weights")
 
 
 # --- Data reading ---
@@ -294,7 +335,6 @@ def squares():
 
 
 if __name__ == "__main__":
-
     # --- Template test ---
     fitter = ANNClassification(units=[3, 4], lambda_=0)
     X = np.array([
@@ -316,40 +356,22 @@ if __name__ == "__main__":
     X_d, y_d = doughnut()
     X_s, y_s = squares()
 
+    # --- Fit doughnut.tab and squares.tab ---
+    find_minimal_network(X_d, y_d, "doughnut.tab")
+    find_minimal_network(X_s, y_s, "squares.tab")
+
     # --- Gradient check ---
-    # Verify analytical gradients against numerical approximations on multiple
-    # datasets to confirm backprop is correct before using it for training.
+    # Verify analytical gradients against numerical approximations using the
+    # minimal architectures found above. XOR is also included as a simple
+    # sanity check with a known nonlinear problem.
 
     print("\nRunning gradient check on XOR (from test_nn.py)...")
     X_xor = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float)
     y_xor = np.array([0, 1, 1, 0])
     gradient_check(X_xor, y_xor, units=[3])
 
-    print("\nRunning gradient check on doughnut.tab...")
+    print("\nRunning gradient check on doughnut.tab with units=[3]...")
     gradient_check(X_d, y_d, units=[3])
 
-    print("\nRunning gradient check on squares.tab...")
-    gradient_check(X_s, y_s, units=[4])
-
-    # --- Fit doughnut.tab and squares.tab ---
-    # We look for the smallest network that perfectly classifies the training data.
-
-    print("\nFitting doughnut.tab:")
-    minimal_d = None
-    for units in [[2], [3], [4], [5]]:
-        model = ANNClassification(units=units, lambda_=0).fit(X_d, y_d, n_epochs=5000)
-        acc = accuracy(model, X_d, y_d)
-        print(f"  units={units}: accuracy={acc:.3f}")
-        if acc == 1.0 and minimal_d is None:
-            minimal_d = units
-    print(f"  Minimal network: units={minimal_d}")
-
-    print("\nFitting squares.tab:")
-    minimal_s = None
-    for units in [[2], [3], [4], [5]]:
-        model = ANNClassification(units=units, lambda_=0).fit(X_s, y_s, n_epochs=5000)
-        acc = accuracy(model, X_s, y_s)
-        print(f"  units={units}: accuracy={acc:.3f}")
-        if acc == 1.0 and minimal_s is None:
-            minimal_s = units
-    print(f"  Minimal network: units={minimal_s}")
+    print("\nRunning gradient check on squares.tab with units=[2, 2]...")
+    gradient_check(X_s, y_s, units=[2, 2])
