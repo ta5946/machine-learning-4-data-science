@@ -2,12 +2,14 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.patches import Patch
 
 import nn
 import nn_pt
 
 # --- Setup ---
 
+DATASET_NAME = "doughnut.tab"
 UNITS = [3]
 N_EPOCHS = 5000
 SEED = 42
@@ -99,24 +101,42 @@ def compare_weights(X, y):
     print(f"  Pearson correlation:            {np.corrcoef(flat_np, flat_pt)[0, 1]:.6f}")
 
     layer_diffs = [(W_np - W_pt).flatten() for W_np, W_pt in zip(weights_np, weights_pt)]
-    colors = sns.color_palette("deep", n_colors=len(layer_diffs))
+    layer_colors = ["#4C78A8", "#F58518", "#54A24B", "#E45756"]
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=(9, 4.8))
 
     start = 0
-    for layer_index, (layer_diff, color) in enumerate(zip(layer_diffs, colors), start=1):
+    legend_handles = []
+    for layer_index, (W_np, W_pt, layer_diff, layer_color) in enumerate(
+            zip(weights_np, weights_pt, layer_diffs, layer_colors), start=1):
+        bias_count = W_np.shape[1]
         x_positions = np.arange(start, start + len(layer_diff))
-        plt.bar(x_positions, layer_diff, color=color, width=0.8, label=f"Layer {layer_index}")
+        bars = plt.bar(
+            x_positions,
+            layer_diff,
+            color=layer_color,
+            width=0.8,
+            edgecolor="white",
+            linewidth=0.8,
+            alpha=0.9,
+        )
+
+        for bias_bar in bars[:bias_count]:
+            bias_bar.set_hatch("//")
+            bias_bar.set_edgecolor("#222222")
+            bias_bar.set_linewidth(1.0)
+
+        legend_handles.append(Patch(facecolor=layer_color, edgecolor="white", label=f"Layer {layer_index}"))
         start += len(layer_diff)
-        if layer_index < len(layer_diffs):
-            plt.axvline(start - 0.5, color="black", linestyle="--", linewidth=1, alpha=0.5)
 
     plt.xlabel("Weight index")
     plt.ylabel("Difference")
     plt.xticks(np.arange(len(flat_np)), [str(i) for i in range(len(flat_np))])
-    plt.axhline(0, color="black", linewidth=1)
+    plt.axhline(0, color="#222222", linewidth=1.2)
+    plt.grid(axis="y", linestyle=":", linewidth=0.8, alpha=0.5)
     plt.title("Differences between nn.py and nn_pt.py weights")
-    plt.legend()
+    legend_handles.append(Patch(facecolor="white", edgecolor="#222222", hatch="//", label="Bias"))
+    plt.legend(handles=legend_handles, frameon=True)
     plt.tight_layout()
     plt.savefig("nn_weight_differences.png", dpi=120)
     plt.close()
@@ -171,7 +191,13 @@ def compare_timing(X, y):
 
 
 if __name__ == "__main__":
-    X, y = nn.doughnut()
+    if DATASET_NAME == "doughnut.tab":
+        X, y = nn.doughnut()
+    elif DATASET_NAME == "squares.tab":
+        X, y = nn.squares()
+    else:
+        raise ValueError(f"Unsupported dataset: {DATASET_NAME}")
+
     compare_probabilities(X, y)
     compare_loss_curves(X, y)
     compare_weights(X, y)
