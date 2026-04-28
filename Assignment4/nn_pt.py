@@ -19,81 +19,157 @@ def softmax(z):
     return torch.softmax(z, dim=1)
 
 
-# --- Trained model returned by fit() ---
+def apply_activation(z, activation):
+    if activation == "sigmoid":
+        return torch.sigmoid(z)
+    if activation == "relu":
+        return torch.relu(z)
+    raise ValueError(f"Unsupported activation: {activation}")
+
+
+def resolve_activations(activation, n_hidden_layers):
+    # A single activation name is reused for every hidden layer.
+    if isinstance(activation, str):
+        activations = [activation] * n_hidden_layers
+    else:
+        activations = list(activation)
+
+    if len(activations) != n_hidden_layers:
+        raise ValueError("Number of activations must match number of hidden layers")
+
+    for name in activations:
+        apply_activation(torch.zeros(1), name)
+
+    return activations
+
+
+# --- Shared network helpers ---
+
+def initialize_layers(layer_sizes, activations):
+    # Draw the same folded weight matrices as nn.py, then copy them into nn.Linear.
+    linear_layers = []
+    for layer_index in range(len(layer_sizes) - 1):
+        n_in = layer_sizes[layer_index]
+        n_out = layer_sizes[layer_index + 1]
+        activation = activations[layer_index] if layer_index < len(activations) else "sigmoid"
+
+        if activation == "relu":
+            limit = np.sqrt(6.0 / n_in)
+        else:
+            limit = np.sqrt(2.0 / (n_in + n_out))
+
+        W = np.random.uniform(-limit, limit, (n_in + 1, n_out))
+
+        linear = torch.nn.Linear(n_in, n_out).to(device)
+        with torch.no_grad():
+            linear.bias.copy_(torch.as_tensor(W[0]))
+            linear.weight.copy_(torch.as_tensor(W[1:].T))
+        linear_layers.append(linear)
+
+    return linear_layers
+
+
+def forward_raw(X_tensor, linear_layers, activations):
+    # Hidden layers use the requested activations; the output layer stays raw.
+    A = X_tensor
+    for layer_index, linear in enumerate(linear_layers):
+        Z = linear(A)
+        is_last_layer = (layer_index == len(linear_layers) - 1)
+        A = Z if is_last_layer else apply_activation(Z, activations[layer_index])
+    return A
+
+
+def regularization_loss(linear_layers, lambda_, batch_m):
+    # Only regularize ordinary weights, not bias parameters.
+    if lambda_ == 0:
+        return 0
+
+    penalty = sum(torch.sum(linear.weight ** 2) for linear in linear_layers)
+    return lambda_ * penalty / (2 * batch_m)
+
+
+def folded_weights(linear_layers):
+    # Reconstruct the folded (n_in + 1, n_out) matrices used in nn.py.
+    folded = []
+    for linear in linear_layers:
+        W = linear.weight.detach().cpu().numpy().T  # (n_in, n_out)
+        b = linear.bias.detach().cpu().numpy().reshape(1, -1)  # (1, n_out)
+        folded.append(np.vstack([b, W]))  # (n_in + 1, n_out)
+    return folded
+
+
+# --- Trained models returned by fit() ---
 
 class ANNClassificationModel:
-    def __init__(self, linear_layers, loss_history=None):
-        # Each nn.Linear holds weight (n_out, n_in) and bias (n_out,),
-        # corresponding to the (n_in + 1, n_out) folded matrix used in nn.py.
+    def __init__(self, linear_layers, activations, loss_history=None):
         self._linear_layers = linear_layers
+        self._activations = activations
         # List of (epoch, loss) pairs if log_every was set during fit, else empty.
         self.loss_history = loss_history if loss_history is not None else []
 
     def predict(self, X):
         # Run the forward pass on new data to get class probabilities.
-        # torch.no_grad disables autograd since we are only doing inference.
         X_tensor = torch.as_tensor(X, dtype=torch.float64).to(device)
         with torch.no_grad():
-            A = X_tensor
-            for layer_index, linear in enumerate(self._linear_layers):
-                Z = linear(A)
-
-                is_last_layer = (layer_index == len(self._linear_layers) - 1)
-                A = softmax(Z) if is_last_layer else torch.sigmoid(Z)
-
-        return A.cpu().numpy()
+            logits = forward_raw(X_tensor, self._linear_layers, self._activations)
+            probs = softmax(logits)
+        return probs.cpu().numpy()
 
     def weights(self):
-        # Reconstruct the folded (n_in + 1, n_out) matrices used in nn.py.
-        folded = []
-        for linear in self._linear_layers:
-            W = linear.weight.detach().cpu().numpy().T  # (n_in, n_out)
-            b = linear.bias.detach().cpu().numpy().reshape(1, -1)  # (1, n_out)
-            folded.append(np.vstack([b, W]))  # (n_in + 1, n_out)
-        return folded
+        return folded_weights(self._linear_layers)
 
 
-# --- Fitter class that trains the network ---
+class ANNRegressionModel:
+    def __init__(self, linear_layers, activations, loss_history=None):
+        self._linear_layers = linear_layers
+        self._activations = activations
+        # List of (epoch, loss) pairs if log_every was set during fit, else empty.
+        self.loss_history = loss_history if loss_history is not None else []
 
-class ANNClassification:
-    def __init__(self, units, lambda_=0):
+    def predict(self, X):
+        # Run the forward pass on new data to get numeric predictions.
+        X_tensor = torch.as_tensor(X, dtype=torch.float64).to(device)
+        with torch.no_grad():
+            predictions = forward_raw(X_tensor, self._linear_layers, self._activations)
+        return predictions.cpu().numpy().reshape(-1)
+
+    def weights(self):
+        return folded_weights(self._linear_layers)
+
+
+# --- Shared fitter class ---
+
+class _ANNBase:
+    def __init__(self, units, lambda_=0, activation="sigmoid"):
         # units: list of hidden layer sizes, [10, 5] means two hidden layers of size 10 and 5
-        # lambda_: regularization strength (not used in part 1)
+        # lambda_: regularization strength; bias weights are not regularized
         self.units = units
         self.lambda_ = lambda_
+        self.activation = activation
 
-    def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=64, seed=42, log_every=None):
+    def _fit(self, X, y, task, learning_rate, n_epochs, batch_size, seed, log_every):
         # Fix random seed for reproducibility
         np.random.seed(seed)
 
         m, n_features = X.shape
-        n_classes = len(np.unique(y))
+        activations = resolve_activations(self.activation, len(self.units))
 
-        # F.cross_entropy takes integer labels and fuses softmax + log + CE
-        # into one kernel, so we don't need to one-hot encode y here.
-        y_tensor = torch.as_tensor(y, dtype=torch.long).to(device)
+        if task == "classification":
+            n_outputs = len(np.unique(y))
+            y_tensor = torch.as_tensor(y, dtype=torch.long).to(device)
+        elif task == "regression":
+            n_outputs = 1
+            y_tensor = torch.as_tensor(y, dtype=torch.float64).reshape(-1, 1).to(device)
+        else:
+            raise ValueError(f"Unsupported task: {task}")
+
         X_tensor = torch.as_tensor(X, dtype=torch.float64).to(device)
 
         # Full network structure: input -> hidden layers -> output
-        layer_sizes = [n_features] + self.units + [n_classes]
+        layer_sizes = [n_features] + self.units + [n_outputs]
+        linear_layers = initialize_layers(layer_sizes, activations)
 
-        # Xavier initialization keeps activation variance stable across layers,
-        # which is especially important for sigmoid. We draw with NumPy and
-        # copy into nn.Linear (row 0 -> bias, rows 1: -> weight transposed).
-        linear_layers = []
-        for layer_index in range(len(layer_sizes) - 1):
-            n_in = layer_sizes[layer_index]
-            n_out = layer_sizes[layer_index + 1]
-            xavier_limit = np.sqrt(2.0 / (n_in + n_out))
-            W = np.random.uniform(-xavier_limit, xavier_limit, (n_in + 1, n_out))
-
-            linear = torch.nn.Linear(n_in, n_out).to(device)
-            with torch.no_grad():
-                linear.bias.copy_(torch.as_tensor(W[0]))
-                linear.weight.copy_(torch.as_tensor(W[1:].T))
-            linear_layers.append(linear)
-
-        # Plain SGD with no momentum, matching the manual gradient step in nn.py
+        # Plain SGD with no momentum, matching the manual gradient step in nn.py.
         all_parameters = [p for linear in linear_layers for p in linear.parameters()]
         optimizer = torch.optim.SGD(all_parameters, lr=learning_rate, momentum=0)
 
@@ -109,16 +185,16 @@ class ANNClassification:
             for batch_start in range(0, m, batch_size):
                 X_batch = X_shuffled[batch_start:batch_start + batch_size]
                 y_batch = y_shuffled[batch_start:batch_start + batch_size]
+                batch_m = X_batch.shape[0]
 
-                # --- Forward pass ---
-                # Output raw logits: F.cross_entropy applies softmax internally.
-                A = X_batch
-                for layer_index, linear in enumerate(linear_layers):
-                    Z = linear(A)
-                    is_last_layer = (layer_index == len(linear_layers) - 1)
-                    A = Z if is_last_layer else torch.sigmoid(Z)
-
-                loss = torch.nn.functional.cross_entropy(A, y_batch)
+                output = forward_raw(X_batch, linear_layers, activations)
+                if task == "classification":
+                    loss = torch.nn.functional.cross_entropy(output, y_batch)
+                elif task == "regression":
+                    loss = torch.nn.functional.mse_loss(output, y_batch)
+                else:
+                    raise ValueError(f"Unsupported task: {task}")
+                loss = loss + regularization_loss(linear_layers, self.lambda_, batch_m)
 
                 # --- Backward pass and weight update ---
                 # autograd computes gradients, SGD applies W <- W - lr * dW.
@@ -129,20 +205,30 @@ class ANNClassification:
             # Log full-data loss every log_every epochs
             if log_every is not None and epoch % log_every == 0:
                 with torch.no_grad():
-                    A = X_tensor
-                    for layer_index, linear in enumerate(linear_layers):
-                        Z = linear(A)
-                        is_last_layer = (layer_index == len(linear_layers) - 1)
-                        A = softmax(Z) if is_last_layer else torch.sigmoid(Z)
-                    loss_val = torch.nn.functional.nll_loss(torch.log(A + 1e-15), y_tensor).item()
+                    output = forward_raw(X_tensor, linear_layers, activations)
+                    if task == "classification":
+                        loss_val = torch.nn.functional.cross_entropy(output, y_tensor).item()
+                    elif task == "regression":
+                        loss_val = torch.nn.functional.mse_loss(output, y_tensor).item()
+                    else:
+                        raise ValueError(f"Unsupported task: {task}")
                     loss_history.append((epoch, loss_val))
 
-        return ANNClassificationModel(linear_layers, loss_history)
+        if task == "classification":
+            return ANNClassificationModel(linear_layers, activations, loss_history)
+        return ANNRegressionModel(linear_layers, activations, loss_history)
 
 
-class ANNRegression:
-    # implement me too, please
-    pass
+# --- Fitter classes that train the network ---
+
+class ANNClassification(_ANNBase):
+    def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=64, seed=42, log_every=None):
+        return self._fit(X, y, "classification", learning_rate, n_epochs, batch_size, seed, log_every)
+
+
+class ANNRegression(_ANNBase):
+    def fit(self, X, y, learning_rate=0.5, n_epochs=10000, batch_size=64, seed=42, log_every=None):
+        return self._fit(X, y, "regression", learning_rate, n_epochs, batch_size, seed, log_every)
 
 
 # --- Helper: classification accuracy ---

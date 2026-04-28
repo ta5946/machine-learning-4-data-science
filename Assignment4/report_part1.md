@@ -2,7 +2,7 @@
 
 ## Task
 
-Implement a multi-layer fully-connected artificial neural network for classification in the "old-school" style, without autograd, using analytically derived gradients and gradient descent for optimization. The implementation must support an arbitrary number of hidden layers of any size, include a bias at each layer, use sigmoid activation functions in hidden layers, and be structured so that the corresponding tests in `test_nn.py` pass. Only `numpy` is allowed as an external library.
+Implement a multi-layer fully-connected artificial neural network for classification in the "old-school" style, without autograd, using analytically derived gradients and gradient descent for optimization. The implementation must support an arbitrary number of hidden layers of any size, include a bias at each layer, and use sigmoid activation functions in hidden layers. Only `numpy` is allowed as an external library.
 
 ---
 
@@ -64,7 +64,7 @@ Training uses **mini-batch gradient descent**. Mini-batch was chosen over full-b
 |---|---|---|
 | Learning rate | 0.5 | Converges reliably with Xavier initialization and sigmoid activations |
 | Epochs | 10000 | Sufficient for convergence on small to medium datasets |
-| Batch size | 32 | Standard mini-batch size, scales well to larger datasets |
+| Batch size | 64 | Standard mini-batch size, also matching the PyTorch comparison implementation |
 | Random seed | 42 | Fixed for reproducibility across platforms |
 
 Regularization is not applied in part 1. The `lambda_` parameter is accepted but ignored.
@@ -85,12 +85,12 @@ We searched for the network with the fewest total parameters (weights) that perf
 
 | Architecture | Training accuracy | Total weights |
 |---|---|---|
-| `[1]` | 0.681 | 7 |
-| `[2]` | 0.903 | 12 |
+| `[1]` | 0.685 | 7 |
+| `[2]` | 0.894 | 12 |
 | `[3]` | 1.000 | 17 |
-| `[1, 2]` | 0.685 | 13 |
-| `[2, 1]` | 0.699 | 13 |
-| `[3, 2]` | 1.000 | 23 |
+| `[1, 2]` | 0.681 | 13 |
+| `[2, 1]` | 0.685 | 13 |
+| `[3, 2]` | 0.917 | 23 |
 | ... | ... | ... |
 
 **Minimal network:** `units=[3]` with **17 weights**.
@@ -99,9 +99,9 @@ We searched for the network with the fewest total parameters (weights) that perf
 
 | Architecture | Training accuracy | Total weights |
 |---|---|---|
-| `[3]` | 0.738 | 17 |
+| `[3]` | 0.985 | 17 |
 | `[4]` | 1.000 | 22 |
-| `[2, 1]` | 0.892 | 13 |
+| `[2, 1]` | 0.887 | 13 |
 | `[2, 2]` | 1.000 | 18 |
 | `[3, 2]` | 1.000 | 23 |
 | ... | ... | ... |
@@ -126,12 +126,12 @@ Results are reported per weight matrix using the minimal architectures found abo
 
 | Dataset | Architecture | Weight matrix | Max relative difference |
 |---|---|---|---|
-| XOR | `[3]` | Layer 1 (input → hidden) | 1.61e-06 |
-| XOR | `[3]` | Layer 2 (hidden → output) | 2.49e-06 |
-| `doughnut.tab` | `[3]` | Layer 1 (input → hidden) | 6.40e-07 |
-| `doughnut.tab` | `[3]` | Layer 2 (hidden → output) | 2.24e-06 |
-| `squares.tab` | `[2, 2]` | Layer 1 (input → hidden) | 7.58e-07 |
-| `squares.tab` | `[2, 2]` | Layer 2 (hidden → hidden) | 1.40e-06 |
-| `squares.tab` | `[2, 2]` | Layer 3 (hidden → output) | 3.30e-06 |
+| XOR | `[3]` | Layer 1 (input -> hidden) | 1.61e-06 |
+| XOR | `[3]` | Layer 2 (hidden -> output) | 2.49e-06 |
+| `doughnut.tab` | `[3]` | Layer 1 (input -> hidden) | 6.40e-07 |
+| `doughnut.tab` | `[3]` | Layer 2 (hidden -> output) | 2.24e-06 |
+| `squares.tab` | `[2, 2]` | Layer 1 (input -> hidden) | 7.58e-07 |
+| `squares.tab` | `[2, 2]` | Layer 2 (hidden -> hidden) | 1.40e-06 |
+| `squares.tab` | `[2, 2]` | Layer 3 (hidden -> output) | 3.30e-06 |
 
 The relative differences are in the range of $10^{-7}$ to $10^{-6}$, which is well within the approximation error of the one-sided numerical formula, proportional to $\varepsilon = 10^{-5}$. This confirms that the analytical backpropagation gradients are correct across all tested datasets and architectures.
