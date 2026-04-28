@@ -1,0 +1,36 @@
+[PART 3, grades 9-10]
+
+This part of the homework is a competition and will be graded according to (1) the performance on the final leaderboard and (2) on the ingenuity of the solution.
+
+The data is FTIR spectral data set of human tissues, which means that for each tissue position (or "pixel") there is some spectral information. Effectively, you can imagine the data as images with an additional spectral dimension. The best models will likely use both spatial and spectral information, but feel free to simplify the problem and use either only spectral information (imagine "pixels" as independent) or spatial (convert to a black and white image). We have six classes in the data (0-5), and -1 denotes unannotated parts.
+
+Here is how tissue samples and an individual spectral look like. Both images were obtained with predict_lr.ipynb notebook.
+
+Tissue samples A spectrum
+
+You need to use PyTorch to solve this part. In the report, clearly describe your final model and interesting steps in discovering it.
+
+The dataset, additional instructions, and an example python notebook are available on the competition server. As you can see in the example notebook, you will need to predict classes for the following image part: data_predict = data[265:465,360:660] (actually, only a subset of parts where the tissue mask is True and where we also have true annotations will be used for scoring). We have sent emails with the login information; if you did not receive it, please email marko.toplak@fri.uni-lj.si.
+
+
+MLDS1: spectral image
+Hello, ta5946@student.uni-lj.si (9edb)! [logout]
+Today you used up 0 of 5 submissions.
+Data
+Data: image1-competition.hdf5
+Data for prediction: a 200x300 rectangle in the image, see predict_lr.ipynb
+Submission
+Submit a .npy file for predictions for the given rectangle, see predict_lr.ipynb for an example that creates it. We use log loss for scoring. Half of your predictions will be used for the leaderboard, and the other half for the final results. This is to discourage overfitting onto the leaderboard.
+
+Helper files:
+- predict_lr.ipynb
+Leaderbord submission
+Submission: No file chosen
+Final submission
+If you do not make a final submission, the submission with the best score on the leaderboard will be used instead. If you make any submission here, it will be used as your final results. If you submit multiple times, the last submission will be used.
+Submission: No file chosen
+Rezultati
+Leaderboard
+Final results - visible after submission close.
+All my results - leaderboard results are visible already, the final will be shown when submissions close.
+This pages uses cookies for login. With the login you agree with that.
