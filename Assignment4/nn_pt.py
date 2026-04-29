@@ -214,6 +214,17 @@ class _ANNBase:
                         raise ValueError(f"Unsupported task: {task}")
                     loss_history.append((epoch, loss_val))
 
+        if log_every is not None and (not loss_history or loss_history[-1][0] != n_epochs):
+            with torch.no_grad():
+                output = forward_raw(X_tensor, linear_layers, activations)
+                if task == "classification":
+                    loss_val = torch.nn.functional.cross_entropy(output, y_tensor).item()
+                elif task == "regression":
+                    loss_val = torch.nn.functional.mse_loss(output, y_tensor).item()
+                else:
+                    raise ValueError(f"Unsupported task: {task}")
+                loss_history.append((n_epochs, loss_val))
+
         if task == "classification":
             return ANNClassificationModel(linear_layers, activations, loss_history)
         return ANNRegressionModel(linear_layers, activations, loss_history)

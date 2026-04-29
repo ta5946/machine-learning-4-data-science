@@ -43,18 +43,18 @@ def compare_probabilities(X, y):
     print(f"  Max probability difference:     {np.max(abs_diff):.2e}")
     print(f"  Average probability difference: {np.mean(abs_diff):.2e}")
     print(f"  Classification difference:      {classification_difference:.2f}%")
-    print(f"  nn.py accuracy:                 {accuracy_np:.2f}%")
-    print(f"  nn_pt.py accuracy:              {accuracy_pt:.2f}%")
+    print(f"  NumPy accuracy:                 {accuracy_np:.2f}%")
+    print(f"  PyTorch accuracy:               {accuracy_pt:.2f}%")
 
 
 # --- Comparison 2: loss curves over epochs ---
 
 def compare_loss_curves(X, y, log_every=LOG_EVERY):
     # Train with loss tracking enabled and plot both trajectories.
-    print("\nTraining nn.py with loss tracking...")
+    print("\nTraining NumPy implementation with loss tracking...")
     model_np = nn.ANNClassification(units=UNITS, lambda_=0).fit(
         X, y, n_epochs=N_EPOCHS, seed=SEED, log_every=log_every)
-    print("Training nn_pt.py with loss tracking...")
+    print("Training PyTorch implementation with loss tracking...")
     model_pt = nn_pt.ANNClassification(units=UNITS, lambda_=0).fit(
         X, y, n_epochs=N_EPOCHS, seed=SEED, log_every=log_every)
 
@@ -62,8 +62,8 @@ def compare_loss_curves(X, y, log_every=LOG_EVERY):
     epochs_pt, losses_pt = zip(*model_pt.loss_history)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(epochs_np, losses_np, label="nn.py (NumPy)", linewidth=2)
-    plt.plot(epochs_pt, losses_pt, label="nn_pt.py (PyTorch)", linewidth=2, linestyle="--")
+    plt.plot(epochs_np, losses_np, label="NumPy", linewidth=2)
+    plt.plot(epochs_pt, losses_pt, label="PyTorch", linewidth=2, linestyle="--")
     plt.xlabel("Epoch")
     plt.ylabel("Cross-entropy loss")
     plt.yscale("log")
@@ -74,8 +74,8 @@ def compare_loss_curves(X, y, log_every=LOG_EVERY):
     plt.close()
 
     print("  Saved plot to nn_loss_curves.png")
-    print(f"  nn.py final training loss:      {losses_np[-1]:.6f}")
-    print(f"  nn_pt.py final training loss:   {losses_pt[-1]:.6f}")
+    print(f"  NumPy final training loss:      {losses_np[-1]:.6f}")
+    print(f"  PyTorch final training loss:    {losses_pt[-1]:.6f}")
 
 
 # --- Comparison 3: weight agreement ---
@@ -134,7 +134,7 @@ def compare_weights(X, y):
     plt.xticks(np.arange(len(flat_np)), [str(i) for i in range(len(flat_np))])
     plt.axhline(0, color="#222222", linewidth=1.2)
     plt.grid(axis="y", linestyle=":", linewidth=0.8, alpha=0.5)
-    plt.title("Differences between nn.py and nn_pt.py weights")
+    plt.title("Difference between NumPy and PyTorch weights")
     legend_handles.append(Patch(facecolor="white", edgecolor="#222222", hatch="//", label="Bias"))
     plt.legend(handles=legend_handles, frameon=True)
     plt.tight_layout()
@@ -182,12 +182,12 @@ def compare_timing(X, y):
         model_pt.predict(X)
     average_predict_time_pt = (time.perf_counter() - t0) / N_TIMING_RUNS
 
-    print(f"  nn.py fit time:                {average_fit_time_np:.2f}s")
-    print(f"  nn_pt.py fit time:             {average_fit_time_pt:.2f}s")
-    print(f"  Fit time ratio (nn / nn_pt):   {average_fit_time_np / average_fit_time_pt:.2f}x")
-    print(f"  nn.py predict time:            {average_predict_time_np:.4f}s")
-    print(f"  nn_pt.py predict time:         {average_predict_time_pt:.4f}s")
-    print(f"  Predict time ratio (nn / nn_pt): {average_predict_time_np / average_predict_time_pt:.2f}x")
+    print(f"  NumPy fit time:                {average_fit_time_np:.2f}s")
+    print(f"  PyTorch fit time:              {average_fit_time_pt:.2f}s")
+    print(f"  Fit time ratio (nn.py / nn_pt.py):   {average_fit_time_np / average_fit_time_pt:.2f}x")
+    print(f"  NumPy predict time:            {average_predict_time_np:.4f}s")
+    print(f"  PyTorch predict time:          {average_predict_time_pt:.4f}s")
+    print(f"  Predict time ratio (nn.py / nn_pt.py): {average_predict_time_np / average_predict_time_pt:.2f}x")
 
 
 if __name__ == "__main__":

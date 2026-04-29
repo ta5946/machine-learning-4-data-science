@@ -163,6 +163,15 @@ class ANNClassification:
                     A = softmax(Z) if is_last_layer else sigmoid(Z)
                 loss_history.append((epoch, cross_entropy_loss(A, Y)))
 
+        if log_every is not None and (not loss_history or loss_history[-1][0] != n_epochs):
+            A = X
+            for layer_index, W in enumerate(weights):
+                A_with_bias = np.hstack([np.ones((A.shape[0], 1)), A])
+                Z = A_with_bias @ W
+                is_last_layer = (layer_index == len(weights) - 1)
+                A = softmax(Z) if is_last_layer else sigmoid(Z)
+            loss_history.append((n_epochs, cross_entropy_loss(A, Y)))
+
         return ANNClassificationModel(weights, loss_history)
 
 
