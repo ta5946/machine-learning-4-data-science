@@ -113,6 +113,14 @@ def multiscale_features(data, rows, cols):
     return np.hstack([spectral_values, mean_3x3, mean_5x5, mean_9x9, coordinate_features(data, rows, cols)])
 
 
+def multiscale_5x5_features(data, rows, cols):
+    # Same multiscale idea, but without the widest 9x9 context.
+    spectral_values = spectrum_features(data, rows, cols)
+    mean_3x3 = patch_mean_features(data, rows, cols, radius=1)
+    mean_5x5 = patch_mean_features(data, rows, cols, radius=2)
+    return np.hstack([spectral_values, mean_3x3, mean_5x5, coordinate_features(data, rows, cols)])
+
+
 # --- Model fitting ---
 
 def fit_logistic_regression(X_train, y_train, _seed):
@@ -128,6 +136,30 @@ def fit_neural_network(X_train, y_train, seed):
         y_train,
         learning_rate=LEARNING_RATE,
         n_epochs=N_EPOCHS,
+        batch_size=BATCH_SIZE,
+        seed=seed,
+    )
+
+
+def fit_neural_network_128(X_train, y_train, seed):
+    fitter = ANNClassification(units=[128], lambda_=LAMBDA, activation=ACTIVATION)
+    return fitter.fit(
+        X_train,
+        y_train,
+        learning_rate=LEARNING_RATE,
+        n_epochs=N_EPOCHS,
+        batch_size=BATCH_SIZE,
+        seed=seed,
+    )
+
+
+def fit_neural_network_10_epochs(X_train, y_train, seed):
+    fitter = ANNClassification(units=UNITS, lambda_=LAMBDA, activation=ACTIVATION)
+    return fitter.fit(
+        X_train,
+        y_train,
+        learning_rate=LEARNING_RATE,
+        n_epochs=10,
         batch_size=BATCH_SIZE,
         seed=seed,
     )
@@ -154,6 +186,12 @@ def model_specs():
         ("Spectral-coordinate NN", "spectral_coordinate_nn.npy", spectral_coordinate_features, fit_neural_network),
         ("Local-mean NN", "local_mean_nn.npy", local_mean_features, fit_neural_network),
         ("Multiscale NN", "multiscale_nn.npy", multiscale_features, fit_neural_network),
+        ("Spectral-coordinate LR", "spectral_coordinate_lr.npy", spectral_coordinate_features, fit_logistic_regression),
+        ("Spectral-coordinate NN [128]", "spectral_coordinate_nn_128.npy", spectral_coordinate_features,
+         fit_neural_network_128),
+        ("Spectral-coordinate NN 10 epochs", "spectral_coordinate_nn_10epochs.npy", spectral_coordinate_features,
+         fit_neural_network_10_epochs),
+        ("Multiscale 5x5 NN", "multiscale_5x5_nn.npy", multiscale_5x5_features, fit_neural_network),
     ]
 
 
@@ -163,6 +201,11 @@ def generate_predictions(name, output_name, data, rows, cols, labels, predict_ro
                          build_features, fit_model, n_classes):
     print(f"\n{name}")
     start_time = time.perf_counter()
+    output_path = OUTPUT_DIR / output_name
+
+    if output_path.exists():
+        print(f"  Skipped existing file: {output_path}")
+        return
 
     X_train = build_features(data, rows, cols)
     X_predict = build_features(data, predict_rows, predict_cols)
@@ -179,7 +222,6 @@ def generate_predictions(name, output_name, data, rows, cols, labels, predict_ro
     probabilities = predict_probabilities(model, X_predict, n_classes)
     probabilities = probabilities.reshape(predict_shape + (n_classes,))
 
-    output_path = OUTPUT_DIR / output_name
     np.save(output_path, probabilities.astype(np.float32))
 
     print(f"  Saved:             {output_path}")

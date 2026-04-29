@@ -81,7 +81,7 @@ def anchored_full_rectangles(image_shape):
     return rectangles
 
 
-def selected_validation_rectangles(image_shape):
+def validation_rectangles(image_shape):
     # Validate on each full rectangle except the prediction rectangle.
     rectangles = anchored_full_rectangles(image_shape)
     return [rectangle for rectangle in rectangles if not is_prediction_rectangle(rectangle)]
@@ -163,6 +163,14 @@ def multiscale_features(data, rows, cols):
     return np.hstack([spectral_values, mean_3x3, mean_5x5, mean_9x9, coordinate_features(data, rows, cols)])
 
 
+def multiscale_5x5_features(data, rows, cols):
+    # Same multiscale idea, but without the widest 9x9 context.
+    spectral_values = spectrum_features(data, rows, cols)
+    mean_3x3 = patch_mean_features(data, rows, cols, radius=1)
+    mean_5x5 = patch_mean_features(data, rows, cols, radius=2)
+    return np.hstack([spectral_values, mean_3x3, mean_5x5, coordinate_features(data, rows, cols)])
+
+
 # --- Metrics ---
 
 def log_loss(y_true, probabilities):
@@ -192,6 +200,30 @@ def fit_neural_network(X_train, y_train, seed):
         y_train,
         learning_rate=LEARNING_RATE,
         n_epochs=N_EPOCHS,
+        batch_size=BATCH_SIZE,
+        seed=seed,
+    )
+
+
+def fit_neural_network_128(X_train, y_train, seed):
+    fitter = ANNClassification(units=[128], lambda_=LAMBDA, activation=ACTIVATION)
+    return fitter.fit(
+        X_train,
+        y_train,
+        learning_rate=LEARNING_RATE,
+        n_epochs=N_EPOCHS,
+        batch_size=BATCH_SIZE,
+        seed=seed,
+    )
+
+
+def fit_neural_network_10_epochs(X_train, y_train, seed):
+    fitter = ANNClassification(units=UNITS, lambda_=LAMBDA, activation=ACTIVATION)
+    return fitter.fit(
+        X_train,
+        y_train,
+        learning_rate=LEARNING_RATE,
+        n_epochs=10,
         batch_size=BATCH_SIZE,
         seed=seed,
     )
@@ -281,19 +313,24 @@ def print_results(rectangle_losses, rectangle_accuracies, pooled_labels, pooled_
 
 
 def model_specs():
+    # TODO: Evaluate a conservative probability ensemble of the strongest models.
     return [
         ("Spectral LR", spectrum_features, fit_logistic_regression),
         ("Spectral NN", spectrum_features, fit_neural_network),
         ("Spectral-coordinate NN", spectral_coordinate_features, fit_neural_network),
         ("Local-mean NN", local_mean_features, fit_neural_network),
         ("Multiscale NN", multiscale_features, fit_neural_network),
+        ("Spectral-coordinate LR", spectral_coordinate_features, fit_logistic_regression),
+        ("Spectral-coordinate NN [128]", spectral_coordinate_features, fit_neural_network_128),
+        ("Spectral-coordinate NN 10 epochs", spectral_coordinate_features, fit_neural_network_10_epochs),
+        ("Multiscale 5x5 NN", multiscale_5x5_features, fit_neural_network),
     ]
 
 
 if __name__ == "__main__":
     data, classes = load_data()
     rows, cols, labels = annotated_pixels(classes)
-    rectangles = selected_validation_rectangles(data.shape)
+    rectangles = validation_rectangles(data.shape)
 
     print("Anchored rectangle model evaluation")
     print(f"  Data shape:          {data.shape}")
