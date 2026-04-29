@@ -15,7 +15,6 @@ sys.path.insert(0, str(ROOT))
 
 # The neural-network implementation lives one directory above this competition folder.
 from nn_pt import ANNClassification
-from nn_competition_common import local_mean_features as patch_mean_features
 
 
 DATA_FILE = Path(__file__).with_name("image1-competition.hdf5")
@@ -23,9 +22,6 @@ DATA_FILE = Path(__file__).with_name("image1-competition.hdf5")
 PREDICT_ROWS = slice(265, 465)
 PREDICT_COLS = slice(360, 660)
 
-# Anchored validation cells. Each one is held out once while the model trains on
-# all other annotated pixels.
-VALIDATION_CELLS = [1, 3, 5, 7, 9, 11, 13, 15]
 COORDINATE_MODE = "image"
 
 UNITS = [128, 64]
@@ -86,9 +82,19 @@ def anchored_full_rectangles(image_shape):
 
 
 def selected_validation_rectangles(image_shape):
-    # Validate on selected full rectangles to mimic predicting a held-out crop.
+    # Validate on each full rectangle except the prediction rectangle.
     rectangles = anchored_full_rectangles(image_shape)
-    return [rectangle for rectangle in rectangles if rectangle[0] in VALIDATION_CELLS]
+    return [rectangle for rectangle in rectangles if not is_prediction_rectangle(rectangle)]
+
+
+def is_prediction_rectangle(rectangle):
+    _cell_number, row_start, row_stop, col_start, col_stop = rectangle
+    return (
+        row_start == PREDICT_ROWS.start
+        and row_stop == PREDICT_ROWS.stop
+        and col_start == PREDICT_COLS.start
+        and col_stop == PREDICT_COLS.stop
+    )
 
 
 def rectangle_mask(rows, cols, rectangle):
@@ -126,6 +132,19 @@ def coordinate_features(data, rows, cols):
 def spectral_coordinate_features(data, rows, cols):
     # Pixel spectrum plus normalized image position.
     return np.hstack([spectrum_features(data, rows, cols), coordinate_features(data, rows, cols)])
+
+
+def patch_mean_features(data, rows, cols, radius):
+    padded = np.pad(data, ((radius, radius), (radius, radius), (0, 0)), mode="edge")
+    rows_padded = rows + radius
+    cols_padded = cols + radius
+    features = np.empty((len(rows), data.shape[-1]), dtype=data.dtype)
+
+    for i, (row, col) in enumerate(zip(rows_padded, cols_padded)):
+        patch = padded[row - radius:row + radius + 1, col - radius:col + radius + 1]
+        features[i] = patch.mean(axis=(0, 1))
+
+    return features
 
 
 def local_mean_features(data, rows, cols):
@@ -281,7 +300,7 @@ if __name__ == "__main__":
     print(f"  Annotated examples: {len(labels)}")
     print(f"  Prediction rectangle: rows {PREDICT_ROWS.start}:{PREDICT_ROWS.stop}, "
           f"cols {PREDICT_COLS.start}:{PREDICT_COLS.stop}")
-    print(f"  Validation cells:   {VALIDATION_CELLS}")
+    print(f"  Validation cells:   all except prediction rectangle")
     print(f"  Coordinate mode:    {COORDINATE_MODE}")
 
     for name, build_features, fit_model in model_specs():
