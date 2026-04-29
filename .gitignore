@@ -2,3 +2,5 @@
 .Rproj.user
 .Rproj
 *.hdf5
+*.npy
+__pycache__/
