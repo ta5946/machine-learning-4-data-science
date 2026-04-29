@@ -32,6 +32,13 @@ N_EPOCHS = 5
 BATCH_SIZE = 512
 SEED = 42
 
+ENSEMBLE_WEIGHTS = [0.50, 0.25, 0.25]
+ENSEMBLE_FILES = [
+    "spectral_coordinate_nn.npy",
+    "spectral_coordinate_nn_128.npy",
+    "multiscale_5x5_nn.npy",
+]
+
 
 # --- Data loading ---
 
@@ -229,6 +236,33 @@ def generate_predictions(name, output_name, data, rows, cols, labels, predict_ro
     print(f"  Total time:        {time.perf_counter() - start_time:.1f}s")
 
 
+def generate_ensemble_predictions():
+    print("\nConservative ensemble")
+    start_time = time.perf_counter()
+    output_path = OUTPUT_DIR / "ensemble_conservative.npy"
+
+    if output_path.exists():
+        print(f"  Skipped existing file: {output_path}")
+        return
+
+    ensemble = None
+    for weight, file_name in zip(ENSEMBLE_WEIGHTS, ENSEMBLE_FILES):
+        predictions = np.load(OUTPUT_DIR / file_name)
+        if ensemble is None:
+            ensemble = weight * predictions
+        else:
+            ensemble += weight * predictions
+
+    ensemble = ensemble / ensemble.sum(axis=-1, keepdims=True)
+    np.save(output_path, ensemble.astype(np.float32))
+
+    print(f"  Files:             {ENSEMBLE_FILES}")
+    print(f"  Weights:           {ENSEMBLE_WEIGHTS}")
+    print(f"  Saved:             {output_path}")
+    print(f"  Shape:             {ensemble.shape}")
+    print(f"  Total time:        {time.perf_counter() - start_time:.1f}s")
+
+
 if __name__ == "__main__":
     data, classes = load_data()
     rows, cols, labels = annotated_pixels(classes)
@@ -260,3 +294,5 @@ if __name__ == "__main__":
             fit_model,
             n_classes,
         )
+
+    generate_ensemble_predictions()

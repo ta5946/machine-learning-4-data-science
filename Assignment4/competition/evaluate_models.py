@@ -32,6 +32,8 @@ N_EPOCHS = 5
 BATCH_SIZE = 512
 SEED = 42
 
+ENSEMBLE_WEIGHTS = [0.50, 0.25, 0.25]
+
 
 # --- Data loading ---
 
@@ -284,6 +286,74 @@ def evaluate_model(name, data, rows, cols, labels, rectangles, build_features, f
     return print_results(rectangle_losses, rectangle_accuracies, pooled_labels, pooled_probabilities, model_start)
 
 
+def ensemble_model_specs():
+    return [
+        (ENSEMBLE_WEIGHTS[0], spectral_coordinate_features, fit_neural_network),
+        (ENSEMBLE_WEIGHTS[1], spectral_coordinate_features, fit_neural_network_128),
+        (ENSEMBLE_WEIGHTS[2], multiscale_5x5_features, fit_neural_network),
+    ]
+
+
+def evaluate_ensemble_rectangle(X_parts, labels, rows, cols, rectangle):
+    cell_number = rectangle[0]
+    in_rectangle = rectangle_mask(rows, cols, rectangle)
+    y_train = labels[~in_rectangle]
+    y_val = labels[in_rectangle]
+
+    ensemble_probabilities = None
+
+    for weight, X, fit_model in X_parts:
+        X_train = X[~in_rectangle]
+        X_val = X[in_rectangle]
+
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+
+        model = fit_model(X_train, y_train, SEED + cell_number)
+        probabilities = predict_probabilities(model, X_val)
+
+        if ensemble_probabilities is None:
+            ensemble_probabilities = weight * probabilities
+        else:
+            ensemble_probabilities += weight * probabilities
+
+    return y_val, ensemble_probabilities
+
+
+def evaluate_ensemble_model(name, data, rows, cols, labels, rectangles):
+    rectangle_losses = []
+    rectangle_accuracies = []
+    pooled_labels = []
+    pooled_probabilities = []
+
+    print(f"\n{name}")
+    model_start = time.perf_counter()
+
+    # Build each component's features once and split by rectangle later.
+    X_parts = [
+        (weight, build_features(data, rows, cols), fit_model)
+        for weight, build_features, fit_model in ensemble_model_specs()
+    ]
+    feature_time = time.perf_counter() - model_start
+    input_features = [X.shape[1] for _weight, X, _fit_model in X_parts]
+    print(f"  Input features: {input_features}")
+    print(f"  Weights:        {ENSEMBLE_WEIGHTS}")
+    print(f"  Feature time:   {feature_time:.1f}s")
+
+    for rectangle in rectangles:
+        y_val, probabilities = evaluate_ensemble_rectangle(X_parts, labels, rows, cols, rectangle)
+
+        rectangle_loss = log_loss(y_val, probabilities)
+        rectangle_accuracy = accuracy(y_val, probabilities)
+        rectangle_losses.append(rectangle_loss)
+        rectangle_accuracies.append(rectangle_accuracy)
+        pooled_labels.append(y_val)
+        pooled_probabilities.append(probabilities)
+
+    return print_results(rectangle_losses, rectangle_accuracies, pooled_labels, pooled_probabilities, model_start)
+
+
 def print_results(rectangle_losses, rectangle_accuracies, pooled_labels, pooled_probabilities, model_start):
     rectangle_losses = np.array(rectangle_losses)
     rectangle_accuracies = np.array(rectangle_accuracies)
@@ -313,7 +383,6 @@ def print_results(rectangle_losses, rectangle_accuracies, pooled_labels, pooled_
 
 
 def model_specs():
-    # TODO: Evaluate a conservative probability ensemble of the strongest models.
     return [
         ("Spectral LR", spectrum_features, fit_logistic_regression),
         ("Spectral NN", spectrum_features, fit_neural_network),
@@ -342,3 +411,5 @@ if __name__ == "__main__":
 
     for name, build_features, fit_model in model_specs():
         evaluate_model(name, data, rows, cols, labels, rectangles, build_features, fit_model)
+
+    evaluate_ensemble_model("Conservative ensemble", data, rows, cols, labels, rectangles)

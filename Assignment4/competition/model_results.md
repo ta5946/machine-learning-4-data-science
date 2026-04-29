@@ -33,8 +33,9 @@ These results were produced by running `evaluate_models.py` with the settings ab
 | Spectral-coordinate NN `[128]` | spectrum + coordinates | `0.7549 +/- 0.3524` | `0.7174 +/- 0.1622` | `0.6924` | `0.7494` | `14.0s` |
 | Spectral-coordinate NN 10 epochs | spectrum + coordinates | `0.8330 +/- 0.4458` | `0.7193 +/- 0.1679` | `0.7220` | `0.7608` | `31.8s` |
 | Multiscale 5x5 NN | spectrum + 3x3 mean + 5x5 mean + coordinates | `0.8351 +/- 0.5228` | `0.7373 +/- 0.1689` | `0.6718` | `0.7794` | `29.5s` |
+| Conservative ensemble | 50% Spectral-coordinate NN + 25% Spectral-coordinate NN `[128]` + 25% Multiscale 5x5 NN | `0.7096 +/- 0.3451` | `0.7301 +/- 0.1687` | `0.6241` | `0.7669` | `79.1s` |
 
-The best pooled log loss in this run is from the Local-mean NN. Multiscale 5x5 NN is the best variant that was added after the first five submissions, and Spectral-coordinate NN `[128]` improves slightly over the original Spectral-coordinate NN in validation. Training the Spectral-coordinate NN for 10 epochs improved accuracy but worsened log loss.
+The best pooled log loss in this run is from the Conservative ensemble. Among single models, Local-mean NN has the best pooled log loss. Multiscale 5x5 NN is the strongest multiscale variant in validation, and Spectral-coordinate NN `[128]` slightly improves over the two-layer Spectral-coordinate NN in validation. Training the Spectral-coordinate NN for 10 epochs improved accuracy but worsened log loss.
 
 ## Leaderboard Results
 
@@ -42,6 +43,7 @@ These are the public leaderboard scores after submitting the generated predictio
 
 | Submitted file | Model | Leaderboard score |
 |---|---|---:|
+| `ensemble_conservative.npy` | Conservative ensemble | `0.52797` |
 | `spectral_coordinate_nn.npy` | Spectral-coordinate NN | `0.56253` |
 | `spectral_coordinate_nn_128.npy` | Spectral-coordinate NN `[128]` | `0.58666` |
 | `multiscale_5x5_nn.npy` | Multiscale 5x5 NN | `0.58897` |
@@ -52,7 +54,7 @@ These are the public leaderboard scores after submitting the generated predictio
 | `local_mean_nn.npy` | Local-mean NN | `0.67365` |
 | `spectral_nn.npy` | Spectral NN | `0.79252` |
 
-**Spectral-coordinate NN** has the best leaderboard score. The one-layer Spectral-coordinate NN `[128]` and Multiscale 5x5 NN are the next best models, but neither improves over the original Spectral-coordinate NN. The results do not show a simple trend where more complex models are always better; spectral information is important, global position helps, and extra local context depends on the crop.
+**Conservative ensemble** has the best leaderboard score. Among single models, Spectral-coordinate NN is best, followed by the one-layer Spectral-coordinate NN `[128]` and Multiscale 5x5 NN. The results do not show a simple trend where more complex models are always better; spectral information is important, global position helps, and extra local context depends on the crop.
 
 ## Tried Changes
 
@@ -62,6 +64,6 @@ These are the public leaderboard scores after submitting the generated predictio
 - **Epochs:** more epochs did not reliably improve rectangle validation. The 10-epoch Spectral-coordinate NN improved accuracy but worsened log loss.
 - **Coordinates:** global image coordinates worked better than rectangle-relative coordinates.
 - **Local context:** adding wider local context helped accuracy in some checks but made log loss less stable.
-- **NN layers:** a one-hidden-layer Spectral-coordinate NN was tested as a simpler version of the current `[128, 64]` setup.
+- **NN layers:** a one-hidden-layer Spectral-coordinate NN was tested as a simpler version of the `[128, 64]` setup.
 - **CNN models:** CNN or patch-based models were discussed as possible improvements because the task has spatial structure, but they were not implemented in the final evaluation script.
-- **Ensembles:** probability ensembles were discussed as a possible improvement for log loss, but they are not included in the table above.
+- **Ensembles:** a conservative weighted ensemble was evaluated because averaging probabilities can reduce variance and improve log loss.
