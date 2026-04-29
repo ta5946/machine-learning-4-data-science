@@ -67,7 +67,7 @@ def compare_loss_curves(X, y, log_every=LOG_EVERY):
     plt.xlabel("Epoch")
     plt.ylabel("Cross-entropy loss")
     plt.yscale("log")
-    plt.title("Training loss on doughnut.tab dataset")
+    plt.title("Training loss on doughnut dataset")
     plt.legend()
     plt.tight_layout()
     plt.savefig("nn_loss_curves.png", dpi=120)
