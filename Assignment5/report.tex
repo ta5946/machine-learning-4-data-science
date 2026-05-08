@@ -1,0 +1,144 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FRI Data Science_report LaTeX Template
+% Version 1.0 (28/1/2020)
+%
+% Jure Demšar (jure.demsar@fri.uni-lj.si)
+%
+% Based on MicromouseSymp article template by:
+% Mathias Legrand (legrand.mathias@gmail.com)
+% With extensive modifications by:
+% Antonio Valente (antonio.luis.valente@gmail.com)
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[fleqn,moreauthors,10pt]{ds_report}
+\usepackage[english]{babel}
+
+\graphicspath{{./}}
+
+\JournalInfo{Machine Learning for Data Science 1, 2025-2026}
+\Archive{Homework 5 Report}
+\PaperTitle{Kernel Regression Methods}
+\Authors{Tjaš Ajdovec}
+\affiliation{\textit{ta5946@fri.uni-lj.si}}
+
+\makeatletter
+\renewcommand{\@maketitle}{%
+\twocolumn[{%
+\thispagestyle{empty}%
+{\includegraphics[height=2cm]{logo}}
+\vskip-74pt%
+{\raggedleft\small\sffamily\bfseries\@JournalInfo\\\@Archive\par}%
+\vskip64pt%
+{\raggedright\color{color1}\fontfamily{cmss}\fontseries{bc}\fontshape{n}\fontsize{20}{25}\selectfont \@PaperTitle\par}%
+\vskip10pt%
+{\raggedright\color{color1}\sffamily\fontsize{12}{16}\selectfont  \@Authors\par}%
+\vskip8pt%
+\begingroup%
+\raggedright\sffamily\small%
+\footnotesize\@affiliation\par%
+\endgroup%
+\vskip10pt%
+}]%
+}
+\makeatother
+
+\begin{document}
+
+\flushbottom
+\maketitle
+\thispagestyle{empty}
+
+\section*{Introduction}
+
+In this homework we implemented \textbf{Kernelized Ridge Regression (KRR)} and \textbf{Support Vector Regression (SVR)} with a polynomial and an RBF kernel each. KRR minimizes a regularized squared loss in the dual space. SVR minimizes an $\varepsilon$-insensitive loss via quadratic programming \cite{smola2004tutorial}. We applied both to a 1D sine dataset for visual inspection and to a multidimensional housing dataset for MSE evaluation via cross-validation.
+
+\section*{Part 1: Sine Dataset}
+
+The polynomial kernel of degree $M$ is:
+
+\begin{equation}
+    \kappa(x, x') = (1 + x \cdot x')^M
+\end{equation}
+
+The RBF kernel with bandwidth $\sigma$ is:
+
+\begin{equation}
+    \kappa(x, x') = \exp\!\left(-\frac{\|x - x'\|^2}{2\sigma^2}\right)
+\end{equation}
+
+\textbf{KRR} finds $\alpha = (K + \lambda I)^{-1} y$ by solving a linear system, where $K_{ij} = \kappa(x_i, x_j)$. Predictions are $f(x) = \sum_i \alpha_i \kappa(x_i, x)$. \textbf{SVR} adds an $\varepsilon$-insensitive tube: residuals smaller than $\varepsilon$ incur no penalty. The dual QP uses decision variables $[\alpha_1, \alpha_1^*, \alpha_2, \alpha_2^*, \ldots]$ and box constraint $C = 1/\lambda$. Predictions are $f(x) = \sum_i (\alpha_i - \alpha_i^*)\kappa(x_i, x) + b$, where only points outside the tube (support vectors) have $\alpha_i > 0$ or $\alpha_i^* > 0$.
+
+We applied both methods to \texttt{sine.csv} (200 noisy observations of a sinusoidal signal on $[0, 20]$). Parameters were chosen manually to obtain a good fit and a sparse SVR solution. Results are in Table~\ref{tab:sine}.
+
+\begin{table}[h!]
+    \centering
+    \small
+    \begin{tabular}{l l c c c c}
+        \toprule
+        \textbf{Method} & \textbf{Kernel} & $\sigma$/\textbf{M} & $\lambda$ & $\varepsilon$ & \textbf{Train MSE} \\
+        \midrule
+        KRR & RBF        & $\sigma{=}1.0$ & 0.01 & --   & 0.069 \\
+        KRR & Polynomial & $M{=}5$        & 1.0  & --   & 0.977 \\
+        SVR & RBF        & $\sigma{=}1.0$ & 0.01 & 0.3  & 0.072 \\
+        SVR & Polynomial & $M{=}5$        & 1.0  & 0.3  & 1.020 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Sine dataset results. SVR with RBF produced 85/200 support vectors and SVR with Polynomial produced 141/200.}
+    \label{tab:sine}
+\end{table}
+
+RBF fits the periodic signal well (train MSE $\approx 0.07$) and most predictions land inside the $\varepsilon$-tube, leaving only 85/200 points as support vectors. A polynomial of degree 5 cannot replicate a multi-period sine regardless of parameters, so residuals are large relative to $\varepsilon$ and 141/200 points become support vectors. The high SV count for polynomial SVR is a direct consequence of kernel mismatch, not a tuning failure. Figure~\ref{fig:sine} shows all four fits.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\linewidth]{fig/kernel_methods_comparison.png}
+    \caption{Sine dataset fits. Top row: KRR with RBF (left) and Polynomial (right). Bottom row: SVR with RBF (left) and Polynomial (right). Dark blue points are support vectors and the red shaded band is the $\varepsilon$-tube.}
+    \label{fig:sine}
+\end{figure}
+
+\section*{Part 2: Housing Dataset}
+
+We applied both methods to \texttt{housing2r.csv} (300 samples, 5 features). Features were standardized before computing kernel distances. We measured MSE via 5-fold CV across a grid of kernel parameter values, comparing fixed $\lambda = 1$ against the best $\lambda$ from CV over $\{0.001, 0.01, 0.1, 1, 10, 100\}$. For SVR we used $\varepsilon = 2.0$, roughly 20\% of the target standard deviation, which produced sparse solutions with 75--144 support vectors out of 300. Figure~\ref{fig:housing} shows results for all four method and kernel combinations, with support vector counts on a secondary axis for SVR.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\linewidth]{fig/housing_evaluation.png}
+    \caption{Housing dataset: CV MSE vs kernel parameter for KRR (top) and SVR (bottom) with polynomial (left) and RBF (right) kernels. Dashed lines show $\lambda$ selected by inner CV and solid lines use fixed $\lambda = 1$. Gray triangles (secondary axis) show support vector counts for SVR.}
+    \label{fig:housing}
+\end{figure}
+
+Table~\ref{tab:housing} shows the best configurations. RBF clearly outperforms polynomial for both methods. Polynomial kernels become numerically unstable for $M \geq 4$ even after standardization, so MSE grows sharply at higher degrees despite heavy regularization. RBF peaks around $\sigma \in [2, 10]$, matching the typical inter-point distance after standardization.
+
+\begin{table}[h!]
+    \centering
+    \small
+    \begin{tabular}{l l c c}
+        \toprule
+        \textbf{Method} & \textbf{Kernel} & \textbf{Best param} & \textbf{CV MSE} \\
+        \midrule
+        KRR & Polynomial & $M = 2$        & 27.63 \\
+        KRR & RBF        & $\sigma = 10$  & 27.13 \\
+        SVR & Polynomial & $M = 2$        & 25.65 \\
+        SVR & RBF        & $\sigma = 2$   & 25.64 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Best CV MSE for each method and kernel on the housing dataset.}
+    \label{tab:housing}
+\end{table}
+
+\section*{Discussion}
+
+\textbf{Similarities.} Both methods use the same kernel trick and produce identical predictions in the limit $\lambda \to 0$, $\varepsilon \to 0$. They respond to regularization in the same direction: larger $\lambda$ yields a smoother, more biased fit. CV-selected $\lambda$ improves over fixed $\lambda = 1$ for both, most visibly for polynomial kernels at high degree.
+
+\textbf{Differences.} SVR achieves slightly lower MSE ($\approx 25.6$ vs $\approx 27.1$ at best), for both kernels. The $\varepsilon$-insensitive loss discards small residuals, making SVR more robust to noise near the fit. SVR also produces a sparse solution: with $\varepsilon = 2.0$, between 75 and 144 of 300 training points become support vectors, while KRR uses all of them. KRR requires solving one linear system ($O(n^3)$ once), while SVR requires solving a quadratic program, which is considerably slower. SVR also adds a hyperparameter $\varepsilon$ whose poor choice degrades performance more than mistuning $\lambda$ in KRR.
+
+\textbf{Preference.} For this dataset, KRR is the more practical choice. The MSE gap is small ($\approx 2$ points), KRR is faster to fit and has one fewer hyperparameter to tune. SVR's sparsity advantage would matter if inference cost were a concern or if the dataset were large and noisy. At $n = 300$ neither concern is pressing, so the simpler method is preferred.
+
+\bibliographystyle{unsrt}
+\bibliography{report}
+
+\end{document}

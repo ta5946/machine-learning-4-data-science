@@ -4,3 +4,4 @@
 *.hdf5
 *.npy
 __pycache__/
+.claude
