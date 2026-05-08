@@ -64,13 +64,17 @@ The polynomial kernel of degree $M$ is:
     \kappa(x, x') = (1 + x \cdot x')^M
 \end{equation}
 
+Expanding the binomial yields an implicit polynomial feature map up to degree $M$.
+
 The RBF kernel with bandwidth $\sigma$ is:
 
 \begin{equation}
     \kappa(x, x') = \exp\!\left(-\frac{\|x - x'\|^2}{2\sigma^2}\right)
 \end{equation}
 
-\textbf{KRR} finds $\alpha = (K + \lambda I)^{-1} y$ by solving a linear system, where $K_{ij} = \kappa(x_i, x_j)$. Predictions are $f(x) = \sum_i \alpha_i \kappa(x_i, x)$. \textbf{SVR} adds an $\varepsilon$-insensitive tube: residuals smaller than $\varepsilon$ incur no penalty. The dual QP uses decision variables $[\alpha_1, \alpha_1^*, \alpha_2, \alpha_2^*, \ldots]$ and box constraint $C = 1/\lambda$. Predictions are $f(x) = \sum_i (\alpha_i - \alpha_i^*)\kappa(x_i, x) + b$, where only points outside the tube (support vectors) have $\alpha_i > 0$ or $\alpha_i^* > 0$.
+Its value decays with squared distance into an infinite-dimensional implicit feature space.
+
+Both methods apply the kernel trick, replacing inner products with kernel evaluations. \textbf{KRR} finds $\alpha = (K + \lambda I)^{-1} y$ where $K_{ij} = \kappa(x_i, x_j)$, and predicts $f(x) = \sum_i \alpha_i \kappa(x_i, x)$. \textbf{SVR} adds an $\varepsilon$-insensitive tube: residuals smaller than $\varepsilon$ incur no penalty. The dual QP uses $K$ as its quadratic term, with decision variables $[\alpha_1, \alpha_1^*, \alpha_2, \alpha_2^*, \ldots]$ and box constraint $C = 1/\lambda$. Predictions are $f(x) = \sum_i (\alpha_i - \alpha_i^*)\kappa(x_i, x) + b$, where only points outside the tube (support vectors) have $\alpha_i > 0$ or $\alpha_i^* > 0$.
 
 We applied both methods to \texttt{sine.csv} (200 noisy observations of a sinusoidal signal on $[0, 20]$). Parameters were chosen manually to obtain a good fit and a sparse SVR solution. Results are in Table~\ref{tab:sine}.
 
@@ -81,9 +85,9 @@ We applied both methods to \texttt{sine.csv} (200 noisy observations of a sinuso
         \toprule
         \textbf{Method} & \textbf{Kernel} & $\sigma$/\textbf{M} & $\lambda$ & $\varepsilon$ & \textbf{Train MSE} \\
         \midrule
-        KRR & RBF        & $\sigma{=}1.0$ & 0.01 & --   & 0.069 \\
+        KRR & RBF        & $\sigma{=}1.0$ & 0.01 & --   & \textbf{0.069} \\
         KRR & Polynomial & $M{=}5$        & 1.0  & --   & 0.977 \\
-        SVR & RBF        & $\sigma{=}1.0$ & 0.01 & 0.3  & 0.072 \\
+        SVR & RBF        & $\sigma{=}1.0$ & 0.01 & 0.3  & \textbf{0.072} \\
         SVR & Polynomial & $M{=}5$        & 1.0  & 0.3  & 1.020 \\
         \bottomrule
     \end{tabular}
@@ -102,7 +106,7 @@ RBF fits the periodic signal well (train MSE $\approx 0.07$) and most prediction
 
 \section*{Part 2: Housing Dataset}
 
-We applied both methods to \texttt{housing2r.csv} (300 samples, 5 features). Features were standardized before computing kernel distances. We measured MSE via 5-fold CV across a grid of kernel parameter values, comparing fixed $\lambda = 1$ against the best $\lambda$ from CV over $\{0.001, 0.01, 0.1, 1, 10, 100\}$. For SVR we used $\varepsilon = 2.0$, roughly 20\% of the target standard deviation, which produced sparse solutions with 75--144 support vectors out of 300. Figure~\ref{fig:housing} shows results for all four method and kernel combinations, with support vector counts on a secondary axis for SVR.
+We applied both methods to \texttt{housing2r.csv} (300 samples, 5 features). Features were standardized before computing kernel distances. We measured MSE via 5-fold CV across a grid of kernel parameter values, comparing fixed $\lambda = 1$ against the best $\lambda$ from CV over $\{0.001, 0.01, 0.1, 1, 10, 100\}$. For SVR we used $\varepsilon = 2.0$ (roughly 20\% of the target standard deviation), giving sparse solutions with 75-144 support vectors out of 300. Figure~\ref{fig:housing} shows results for all four method-kernel combinations, with support vector counts on a secondary axis for SVR.
 
 \begin{figure}[h!]
     \centering
@@ -111,7 +115,7 @@ We applied both methods to \texttt{housing2r.csv} (300 samples, 5 features). Fea
     \label{fig:housing}
 \end{figure}
 
-Table~\ref{tab:housing} shows the best configurations. RBF clearly outperforms polynomial for both methods. Polynomial kernels become numerically unstable for $M \geq 4$ even after standardization, so MSE grows sharply at higher degrees despite heavy regularization. RBF peaks around $\sigma \in [2, 10]$, matching the typical inter-point distance after standardization.
+Table~\ref{tab:housing} shows the best configurations. For KRR, RBF outperforms polynomial. For SVR, the best polynomial ($M = 2$) matches RBF almost exactly. Polynomial kernels become numerically unstable for $M \geq 4$ even after standardization, so MSE grows sharply at higher degrees despite heavy regularization. RBF peaks around $\sigma \in [2, 10]$, near the typical inter-point distance after standardization.
 
 \begin{table}[h!]
     \centering
@@ -121,9 +125,9 @@ Table~\ref{tab:housing} shows the best configurations. RBF clearly outperforms p
         \textbf{Method} & \textbf{Kernel} & \textbf{Best param} & \textbf{CV MSE} \\
         \midrule
         KRR & Polynomial & $M = 2$        & 27.63 \\
-        KRR & RBF        & $\sigma = 10$  & 27.13 \\
+        KRR & RBF        & $\sigma = 10$  & \textbf{27.13} \\
         SVR & Polynomial & $M = 2$        & 25.65 \\
-        SVR & RBF        & $\sigma = 2$   & 25.64 \\
+        SVR & RBF        & $\sigma = 2$   & \textbf{25.64} \\
         \bottomrule
     \end{tabular}
     \caption{Best CV MSE for each method and kernel on the housing dataset.}
@@ -132,11 +136,11 @@ Table~\ref{tab:housing} shows the best configurations. RBF clearly outperforms p
 
 \section*{Discussion}
 
-\textbf{Similarities.} Both methods use the same kernel trick and produce identical predictions in the limit $\lambda \to 0$, $\varepsilon \to 0$. They respond to regularization in the same direction: larger $\lambda$ yields a smoother, more biased fit. CV-selected $\lambda$ improves over fixed $\lambda = 1$ for both, most visibly for polynomial kernels at high degree.
+\textbf{Similarities.} Both methods use the same kernel trick and produce identical predictions in the limit $\lambda \to 0$, $\varepsilon \to 0$. Larger $\lambda$ yields a smoother, more biased fit for both.
 
-\textbf{Differences.} SVR achieves slightly lower MSE ($\approx 25.6$ vs $\approx 27.1$ at best), for both kernels. The $\varepsilon$-insensitive loss discards small residuals, making SVR more robust to noise near the fit. SVR also produces a sparse solution: with $\varepsilon = 2.0$, between 75 and 144 of 300 training points become support vectors, while KRR uses all of them. KRR requires solving one linear system ($O(n^3)$ once), while SVR requires solving a quadratic program, which is considerably slower. SVR also adds a hyperparameter $\varepsilon$ whose poor choice degrades performance more than mistuning $\lambda$ in KRR.
+\textbf{Differences.} SVR achieves slightly lower MSE ($\approx 25.6$ vs $\approx 27.1$ at best). The $\varepsilon$-insensitive loss discards small residuals, making SVR more robust to noise. SVR's solution is also sparse: only support vectors contribute to predictions, while KRR uses all training points. KRR solves one linear system ($O(n^3)$), while SVR requires a quadratic program and is considerably slower. SVR also adds a hyperparameter $\varepsilon$ more sensitive to mistuning than $\lambda$.
 
-\textbf{Preference.} For this dataset, KRR is the more practical choice. The MSE gap is small ($\approx 2$ points), KRR is faster to fit and has one fewer hyperparameter to tune. SVR's sparsity advantage would matter if inference cost were a concern or if the dataset were large and noisy. At $n = 300$ neither concern is pressing, so the simpler method is preferred.
+\textbf{Preference.} For this dataset, KRR is the more practical choice: the MSE gap is small ($\approx 2$ points), it is faster to fit and has one fewer hyperparameter. SVR's sparsity would matter at larger scale or when inference cost is a concern, but at $n = 300$ neither applies.
 
 \bibliographystyle{unsrt}
 \bibliography{report}
