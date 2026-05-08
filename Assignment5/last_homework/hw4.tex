@@ -1,0 +1,132 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FRI Data Science_report LaTeX Template
+% Version 1.0 (28/1/2020)
+%
+% Jure Demšar (jure.demsar@fri.uni-lj.si)
+%
+% Based on MicromouseSymp article template by:
+% Mathias Legrand (legrand.mathias@gmail.com)
+% With extensive modifications by:
+% Antonio Valente (antonio.luis.valente@gmail.com)
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[fleqn,moreauthors,10pt]{ds_report}
+\usepackage[english]{babel}
+
+\graphicspath{{fig/}}
+
+\JournalInfo{Machine Learning for Data Science 1, 2025-2026}
+\Archive{Homework 4 Report}
+\PaperTitle{Artificial Neural Networks}
+\Authors{Tjaš Ajdovec}
+\affiliation{\textit{ta5946@fri.uni-lj.si}}
+
+\makeatletter
+\renewcommand{\@maketitle}{%
+\twocolumn[{%
+\thispagestyle{empty}%
+{\includegraphics[height=2cm]{logo}}
+\vskip-74pt%
+{\raggedleft\small\sffamily\bfseries\@JournalInfo\\\@Archive\par}%
+\vskip64pt%
+{\raggedright\color{color1}\fontfamily{cmss}\fontseries{bc}\fontshape{n}\fontsize{20}{25}\selectfont \@PaperTitle\par}%
+\vskip10pt%
+{\raggedright\color{color1}\sffamily\fontsize{12}{16}\selectfont  \@Authors\par}%
+\vskip8pt%
+\begingroup%
+\raggedright\sffamily\small%
+\footnotesize\@affiliation\par%
+\endgroup%
+\vskip10pt%
+}]%
+}
+\makeatother
+
+\begin{document}
+
+\flushbottom
+\maketitle
+\thispagestyle{empty}
+
+\section*{Introduction}
+
+In this homework, we implemented an artificial neural network (ANN) in NumPy for classification tasks, using analytical backpropagation to compute gradients. We then reimplemented it in PyTorch, where gradients are computed using automatic differentiation, and extended the implementation to support regression tasks, multiple activation functions and L2 regularization. We compared both solutions using predicted probabilities, training loss curves, learned weights and training and prediction time. Lastly, we used the PyTorch ANN to classify human tissue based on spectral and spatial information at the pixel level.
+
+\section*{Part 1: Neural Network Implementation}
+
+First, we built a \textbf{fully connected ANNClassifier} in NumPy with sigmoid activations in hidden layers, softmax in the output layer and cross-entropy loss. The network supports any number of hidden layers and neurons per layer. The parameters are stored as a list of weight matrices.
+
+\begin{equation}
+\sigma(z) = \frac{1}{1 + e^{-z}}
+\end{equation}
+
+\begin{equation}
+\frac{d\sigma}{dz} = \sigma(z)\bigl(1 - \sigma(z)\bigr)
+\end{equation}
+
+The optimization uses \textbf{mini-batch gradient descent} for a given batch size and number of shuffled epochs. The forward pass saves the layer activations and calculates the training error. Analytical backpropagation uses the transposed weight matrices to redistribute the error and the sigmoid derivative to scale it at each hidden layer. Xavier weight initialization is used for better training stability.
+
+We verified analytical gradients by comparing them against numerical ones. These were computed by varying each weight by a small $\epsilon$. The maximum relative differences stayed under $10^{-6}$, indicating a correct implementation.
+
+We trained the ANN on the provided datasets to determine the minimal architecture for a perfect fit. For \texttt{doughnut.tab}, this was \textbf{[3] with 17 weights} and for \texttt{squares.tab}, it was \textbf{[2, 2] with 18 weights}.
+
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=\linewidth]{fig/evaluation_grid.png}
+    \caption{Grid on the spectral data image used for model evaluation. Red rectangle is the competition test set.}
+    \label{fig:eval_grid}
+\end{figure}
+
+\section*{Part 2: PyTorch Extension}
+
+After that, we reimplemented the ANNClassifier in PyTorch. We extended it to support \textbf{regression tasks} with the mean squared error (MSE) loss, more hidden layer activation functions such as ReLU, and optional L2 \textbf{regularization} \cite{hastie2009elements}. The gradients are computed by PyTorch autograd when the \texttt{loss.backward()} is called.
+
+To match NumPy precision, we set it to \texttt{float64}. We trained both implementations on the doughnut dataset. We set the learning rate to 0.5, the number of epochs to 5000, the batch size to 64, the network architecture to [3] and used the sigmoid activation function with no regularization. We observed the following:
+
+\begin{table*}[htb!]
+    \centering
+    \small
+    \begin{tabular}{l l c c c c c}
+        \toprule
+        \textbf{Model} & \textbf{Features} & \textbf{Pool Log Loss} & \textbf{Mean $\pm$ Std Log Loss} & \textbf{Mean $\pm$ Std Accuracy} & \textbf{Eval Time (s)} \\
+        \midrule
+        LR & spec & $0.766$ & $0.822 \pm 0.403$ & $0.685 \pm 0.208$ & $67.6$ \\
+        \textbf{LR} & \textbf{spec + coor} & $\textbf{0.724}$ & $0.765 \pm 0.366$ & $\textbf{0.702} \pm 0.197$ & $50.2$ \\
+        \midrule
+        NN & spec & $0.775$ & $0.863 \pm 0.407$ & $0.681 \pm 0.172$ & $18.9$ \\
+        NN & spec + coor & $0.694$ & $0.788 \pm 0.353$ & $0.712 \pm 0.160$ & $21.0$ \\
+        \textbf{NN} & \textbf{spec + 3x3 mean + coor} & $\textbf{0.638}$ & $0.748 \pm 0.364$ & $\textbf{0.736} \pm 0.163$ & $27.3$ \\
+        \textbf{NN} & \textbf{spec + up to 5x5 mean + coor} & $\textbf{0.672}$ & $0.835 \pm 0.523$ & $\textbf{0.737} \pm 0.169$ & $29.5$ \\
+        NN & spec + up to 9x9 mean + coor & $0.781$ & $0.944 \pm 0.538$ & $0.714 \pm 0.175$ & $41.3$ \\
+        \bottomrule
+    \end{tabular}
+    \vspace{0.5em}
+    \caption{Results of model cross-validation (CV) on rectangles in the spectral image. LR stands for logistic regression and NN for neural network. Pooled metrics are calculated per annotated pixel.}
+    \label{tab:model_perf}
+\end{table*}
+
+\begin{itemize}
+\item \textbf{Predicted probabilities} were almost identical. Both models perfectly fit the training data and achieved 100\% classification accuracy.
+\item \textbf{Training loss} curves looked identical.
+\item \textbf{Learned weights} matched up to a precision of $10^{-13}$. Pearson correlation between both sets of weights was equal to 1.
+\item \textbf{Training time} was the only noticeable difference. The NumPy implementation fit the dataset in 2.0s, which is \textbf{5 times faster} than its PyTorch equivalent. This was likely due to the small dataset and framework overhead.
+\end{itemize}
+
+The described extended ANN also passed all the provided tests.
+
+\section*{Part 3: Spectral Data Classification}
+
+Lastly, we were given an image of human tissue with a spectral dimension. The goal was to predict one of six classes for each annotated pixel, specifically within the competition rectangle. To develop and evaluate models, we anchored the image in a grid of such rectangles, as shown in Figure~\ref{fig:eval_grid}. We used these to perform \textbf{leave one out CV}.
+
+We used logistic regression with only spectral features as the baseline. We compared it to the ANN classifier with a 2 layer architecture \texttt{[128, 64]} and ReLU activation. Other training parameters were also adjusted. The complete CV results are presented in Table~\ref{tab:model_perf}. \textbf{NN based models improved performance} over LR in both pooled log loss, which was our primary metric, and classification accuracy. We introduced additional features by computing mean spectral values over local neighborhoods and extended this to multiple scales. The best performing models achieved a pooled log loss of 0.638 and mean accuracy of 0.737, while also being faster than the baseline.
+
+Besides that, we experimented with different NN architectures and coordinates relative to the rectangle, but this did not clearly improve the results. For the final model, we used a \textbf{probability averaging ensemble} of the three best performing models to increase robustness and reduce log loss.
+
+\bibliographystyle{unsrt}
+\bibliography{report}
+
+\end{document}
