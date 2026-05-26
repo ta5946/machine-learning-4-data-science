@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 LIME:
 - num_samples: 1000, enough for a stable local surrogate with only 3 features.
@@ -14,6 +12,9 @@ Shapley:
 - feature orders: all 3! permutations, feasible because the dataset has only 3 features.
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from itertools import permutations
 
 import numpy as np
@@ -43,6 +44,13 @@ EXAMPLES_TO_INTERPRET = pd.DataFrame(
         {"x1": 0.4, "x2": 0.2, "x3": 2},
     ]
 )
+
+
+@dataclass
+class TrainingResult:
+    models: dict[str, Pipeline]
+    evaluation_results: pd.DataFrame
+    training_data: pd.DataFrame
 
 
 def make_one_hot_encoder() -> OneHotEncoder:
@@ -322,7 +330,7 @@ def explain_regression(model: Pipeline) -> pd.DataFrame:
     ).sort_values("coefficient", key=abs, ascending=False)
 
 
-def train_models() -> tuple[dict[str, Pipeline], pd.DataFrame]:
+def train_models() -> TrainingResult:
     x, y = load_data()
     x_train, x_test, y_train, y_test = train_test_split(
         x,
@@ -343,12 +351,18 @@ def train_models() -> tuple[dict[str, Pipeline], pd.DataFrame]:
     evaluation_results = pd.DataFrame(evaluation_rows).sort_values(
         "r2", ascending=False
     )
-    return models, evaluation_results
+    return TrainingResult(
+        models=models,
+        evaluation_results=evaluation_results,
+        training_data=x_train,
+    )
 
 
 if __name__ == "__main__":
-    models, evaluation_results = train_models()
-    training_data, _ = load_data()
+    training_result = train_models()
+    models = training_result.models
+    evaluation_results = training_result.evaluation_results
+    training_data = training_result.training_data
     print("Model evaluation:")
     print(evaluation_results.to_string(index=False))
 
