@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+"""
+LIME:
+- num_samples: 1000, enough for a stable local surrogate with only 3 features.
+- numeric sampling: normal distribution using the training mean and standard deviation.
+- categorical sampling: training frequencies, so common categories appear more often.
+- kernel_width: sqrt(number_of_features) * 0.75, the standard LIME default.
+- surrogate model: Lasso.
+
+Shapley:
+- num_samples: 1000, used to sample replacement values for missing features.
+- missing features: sampled independently from training columns, matching the assumption.
+- feature orders: all 3! permutations, feasible because the dataset has only 3 features.
+"""
+
 from itertools import permutations
 
 import numpy as np
