@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from itertools import permutations
+
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -31,6 +33,13 @@ EXAMPLES_TO_INTERPRET = pd.DataFrame(
 
 def make_one_hot_encoder() -> OneHotEncoder:
     return OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+
+
+def make_feature_dtypes(data: pd.DataFrame) -> dict[str, str]:
+    return {
+        feature: str(data[feature].dtype)
+        for feature in CONTINUOUS_FEATURES + CATEGORICAL_FEATURES
+    }
 
 
 def load_data(path: str = DATA_PATH) -> tuple[pd.DataFrame, pd.Series]:
@@ -132,44 +141,44 @@ def evaluate_model(
 
 def explain_lime(
     model: Pipeline,
-    instance: pd.DataFrame,
+    instance_row: pd.DataFrame,
     training_data: pd.DataFrame,
     num_samples: int = 1000,
     kernel_width: float | None = None,
 ) -> pd.DataFrame:
-    if len(instance) != 1:
-        raise ValueError("LIME explains one instance at a time.")
+    if len(instance_row) != 1:
+        raise ValueError("LIME explains one row at a time.")
 
     rng = np.random.default_rng(RANDOM_STATE)
-    instance_row = instance.iloc[0]
+    instance = instance_row.iloc[0]
 
     # LIME explains one point by creating many artificial points around it.
     # The original instance is kept as the first row of this local dataset.
     perturbed_samples = pd.DataFrame(
         index=range(num_samples), columns=training_data.columns
     )
-    perturbed_samples.iloc[0] = instance_row
+    perturbed_samples.iloc[0] = instance
 
     # Numeric features are sampled from the training distribution, which keeps
     # the artificial points in a plausible range.
     for feature in CONTINUOUS_FEATURES:
         mean = training_data[feature].mean()
         std = training_data[feature].std()
-        perturbed_samples.loc[1:, feature] = rng.normal(
-            mean, std, size=num_samples - 1
-        )
+        perturbed_samples.loc[1:, feature] = rng.normal(mean, std, size=num_samples - 1)
 
     # Categorical values are sampled in the same proportions as in the dataset,
     # so common categories appear more often in the local sample.
     for feature in CATEGORICAL_FEATURES:
-        category_counts = training_data[feature].value_counts(normalize=True).sort_index()
+        category_counts = (
+            training_data[feature].value_counts(normalize=True).sort_index()
+        )
         perturbed_samples.loc[1:, feature] = rng.choice(
             category_counts.index,
             size=num_samples - 1,
             p=category_counts.values,
         )
 
-    perturbed_samples = perturbed_samples.astype(training_data.dtypes.to_dict())
+    perturbed_samples = perturbed_samples.astype(make_feature_dtypes(training_data))
 
     # The original model gives the target values that the local explanation tries
     # to mimic. LIME does not use the true y values here.
@@ -185,11 +194,11 @@ def explain_lime(
         mean = training_data[feature].mean()
         std = training_data[feature].std()
         surrogate_features[feature] = (perturbed_samples[feature] - mean) / std
-        interpretable_instance.append((instance_row[feature] - mean) / std)
+        interpretable_instance.append((instance[feature] - mean) / std)
         feature_names.append(feature)
 
     for feature in CATEGORICAL_FEATURES:
-        category = instance[feature].iloc[0]
+        category = instance_row[feature].iloc[0]
         feature_name = f"{feature}={category}"
         surrogate_features[feature_name] = (
             perturbed_samples[feature] == category
@@ -222,6 +231,65 @@ def explain_lime(
             "lime_weight": surrogate_model.coef_,
         }
     ).sort_values("lime_weight", key=abs, ascending=False)
+
+
+def explain_shapley(
+    model: Pipeline,
+    instance_row: pd.DataFrame,
+    training_data: pd.DataFrame,
+    num_samples: int = 1000,
+) -> pd.DataFrame:
+    if len(instance_row) != 1:
+        raise ValueError("Shapley values explain one row at a time.")
+
+    rng = np.random.default_rng(RANDOM_STATE)
+    features = CONTINUOUS_FEATURES + CATEGORICAL_FEATURES
+    instance = instance_row.iloc[0]
+    contributions = dict.fromkeys(features, 0.0)
+    feature_orders = list(permutations(features))
+
+    # Missing features are sampled independently from their own training columns.
+    # This follows the independence assumption from the homework.
+    background_samples = pd.DataFrame(
+        {
+            feature: rng.choice(training_data[feature].to_numpy(), size=num_samples)
+            for feature in features
+        }
+    ).astype(make_feature_dtypes(training_data))
+
+    # Average the marginal contribution over all possible feature orders.
+    for feature_order in feature_orders:
+        before = background_samples.copy()
+        before_predictions = model.predict(before)
+
+        # Features are added one by one. The prediction change after adding a
+        # feature is its marginal contribution for this order.
+        for feature in feature_order:
+            after = before.copy()
+            after[feature] = instance[feature]
+            after_predictions = model.predict(after)
+
+            contributions[feature] += np.mean(after_predictions - before_predictions)
+
+            before = after
+            before_predictions = after_predictions
+
+    shapley_values = {
+        feature: contribution / len(feature_orders)
+        for feature, contribution in contributions.items()
+    }
+
+    expected_prediction = model.predict(background_samples).mean()
+    instance_prediction = model.predict(instance_row)[0]
+
+    return pd.DataFrame(
+        {
+            "feature": list(shapley_values.keys()),
+            "shapley_value": list(shapley_values.values()),
+            "expected_prediction": expected_prediction,
+            "instance_prediction": instance_prediction,
+        }
+    ).sort_values("shapley_value", key=abs, ascending=False)
 
 
 def explain_regression(model: Pipeline) -> pd.DataFrame:
@@ -290,6 +358,16 @@ if __name__ == "__main__":
             )
             print(f"\nExample {example_index + 1}:")
             print(lime_explanation.to_string(index=False))
+
+        print(f"\nShapley explanations for {model_name}:")
+        for example_index in EXAMPLES_TO_INTERPRET.index:
+            shapley_explanation = explain_shapley(
+                model,
+                EXAMPLES_TO_INTERPRET.loc[[example_index]],
+                training_data,
+            )
+            print(f"\nExample {example_index + 1}:")
+            print(shapley_explanation.to_string(index=False))
 
         if "regression" in model_name:
             # Linear regression gives us direct coefficients to compare with LIME.
