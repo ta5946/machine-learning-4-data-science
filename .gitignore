@@ -1,7 +1,8 @@
 .idea
 .Rproj.user
-.Rproj
+*.Rproj
 *.hdf5
 *.npy
 __pycache__/
 .claude
+*.RHistory

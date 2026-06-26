@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from nn_pt import ANNClassification, ANNRegression
+from nn import ANNClassification, ANNRegression
 
 
 class NNTests(unittest.TestCase):

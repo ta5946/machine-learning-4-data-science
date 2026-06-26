@@ -99,7 +99,7 @@ RBF fits the periodic signal well (train MSE $\approx 0.07$) and most prediction
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\linewidth]{fig/kernel_methods_comparison.png}
+    \includegraphics[width=\linewidth]{kernel_methods_comparison.png}
     \caption{Sine dataset fits. Top row: KRR with RBF (left) and Polynomial (right). Bottom row: SVR with RBF (left) and Polynomial (right). Dark blue points are support vectors and the red shaded band is the $\varepsilon$-tube.}
     \label{fig:sine}
 \end{figure}
@@ -110,7 +110,7 @@ We applied both methods to \texttt{housing2r.csv} (300 samples, 5 features). Fea
 
 \begin{figure}[h!]
     \centering
-    \includegraphics[width=\linewidth]{fig/housing_evaluation.png}
+    \includegraphics[width=\linewidth]{housing_evaluation.png}
     \caption{Housing dataset: CV MSE vs kernel parameter for KRR (top) and SVR (bottom) with polynomial (left) and RBF (right) kernels. Dashed lines show $\lambda$ selected by inner CV and solid lines use fixed $\lambda = 1$. Gray triangles (secondary axis) show support vector counts for SVR.}
     \label{fig:housing}
 \end{figure}

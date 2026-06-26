@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.patches import Patch
 
-import nn
+import nn_np
 import nn_pt
 
 # --- Setup ---
